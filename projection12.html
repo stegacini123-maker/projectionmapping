@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Projection Mapping Tool</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Custom Styles -->
+    <style>
+      /* Reset & Base */
+      html, body {
+        background-color: #000;
+        color: #fff;
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        overscroll-behavior: none;
+        touch-action: none;
+      }
+
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+      /* GPU Acceleration Class */
+      .gpu-accelerated {
+          will-change: transform;
+          transform: translateZ(0);
+          backface-visibility: hidden;
+      }
+
+      /* Animations */
+      .animate-glow { animation: neon-pulse 2s infinite linear; }
+      .animate-hue { animation: hue-cycle 5s infinite linear; }
+      .animate-dash { animation: dash-cycle 2s infinite linear; }
+      .animate-scanner { background-size: 200% 100% !important; animation: scanner-swipe 2s infinite linear; }
+      .animate-draw { 
+          animation-name: draw-stroke;
+          animation-iteration-count: 1;
+          animation-fill-mode: forwards;
+          animation-timing-function: linear;
+      }
+
+      @keyframes neon-pulse {
+        0% { filter: drop-shadow(0 0 2px) hue-rotate(0deg); opacity: 0.8; }
+        50% { filter: drop-shadow(0 0 10px) hue-rotate(180deg); opacity: 1; }
+        100% { filter: drop-shadow(0 0 2px) hue-rotate(360deg); opacity: 0.8; }
+      }
+      @keyframes hue-cycle {
+        0% { filter: hue-rotate(0deg); }
+        100% { filter: hue-rotate(360deg); }
+      }
+      @keyframes dash-cycle { to { stroke-dashoffset: -1000; } }
+      @keyframes draw-stroke { to { stroke-dashoffset: 0; } }
+      @keyframes scanner-swipe {
+        0% { background-position: 100% 0; }
+        100% { background-position: -100% 0; }
+      }
+    </style>
+
+    <!-- React & Babel Standalone -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- External Libs via ESM Shims -->
+    <script type="module">
+        import { v4 } from "https://esm.sh/uuid";
+        window.uuidv4 = v4;
+    </script>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
+    "uuid": "https://esm.sh/uuid@^13.0.0"
+  }
+}
+</script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- MAIN APPLICATION SCRIPT -->
+    <script type="text/babel" data-presets="typescript,react">
+        const { useState, useRef, useEffect, useCallback, useMemo } = React;
+        const uuidv4 = window.uuidv4;
+        
+        // --- CONSTANTS & TYPES ---
+        
+        const SurfaceType = {
+          IMAGE: 'IMAGE',
+          VIDEO: 'VIDEO',
+          COLOR: 'COLOR',
+          LINE: 'LINE',
+        };
+
+        // --- UTILS: MATRIX & MATH ---
+        
+        function solve(A, b) {
+          const n = A.length;
+          for (let i = 0; i < n; i++) {
+            let maxEl = Math.abs(A[i][i]);
+            let maxRow = i;
+            for (let k = i + 1; k < n; k++) {
+              if (Math.abs(A[k][i]) > maxEl) {
+                maxEl = Math.abs(A[k][i]);
+                maxRow = k;
+              }
+            }
+            for (let k = i; k < n; k++) {
+              const tmp = A[maxRow][k];
+              A[maxRow][k] = A[i][k];
+              A[i][k] = tmp;
+            }
+            const tmp = b[maxRow];
+            b[maxRow] = b[i];
+            b[i] = tmp;
+            for (let k = i + 1; k < n; k++) {
+              const c = -A[k][i] / A[i][i];
+              for (let j = i; j < n; j++) {
+                if (i === j) { A[k][j] = 0; } 
+                else { A[k][j] += c * A[i][j]; }
+              }
+              b[k] += c * b[i];
+            }
+          }
+          const x = new Array(n).fill(0);
+          for (let i = n - 1; i > -1; i--) {
+            let sum = 0;
+            for (let j = i + 1; j < n; j++) { sum += A[i][j] * x[j]; }
+            x[i] = (b[i] - sum) / A[i][i];
+          }
+          return x;
+        }
+
+        function getPerspectiveTransform(width, height, corners) {
+          const [p0, p1, p2, p3] = corners;
+          const A = [];
+          const b = [];
+          const srcPts = [{x: 0, y: 0}, {x: width, y: 0}, {x: width, y: height}, {x: 0, y: height}];
+
+          for(let i=0; i<4; i++) {
+            const s = srcPts[i];
+            const d = corners[i];
+            A.push([s.x, s.y, 1, 0, 0, 0, -s.x*d.x, -s.y*d.x]);
+            b.push(d.x);
+            A.push([0, 0, 0, s.x, s.y, 1, -s.x*d.y, -s.y*d.y]);
+            b.push(d.y);
+          }
+
+          const X = solve(A, b);
+          const rounded = X.map(val => Math.abs(val) < 0.000001 ? 0 : val);
+          
+          return `matrix3d(${rounded[0]}, ${rounded[3]}, 0, ${rounded[6]}, ${rounded[1]}, ${rounded[4]}, 0, ${rounded[7]}, 0, 0, 1, 0, ${rounded[2]}, ${rounded[5]}, 0, 1)`;
+        }
+
+        // Helper to calculate polygon perimeter for correct animation speed
+        function getPolygonPerimeter(points) {
+            if (!points || points.length < 2) return 0;
+            let len = 0;
+            for(let i=0; i<points.length; i++) {
+                const p1 = points[i];
+                const p2 = points[(i+1)%points.length];
+                const dx = p1.x - p2.x;
+                const dy = p1.y - p2.y;
+                len += Math.sqrt(dx*dx + dy*dy);
+            }
+            return len;
+        }
+
+        // --- COMPONENTS ---
+
+        const SurfaceLayer = ({ surface, isSelected, onSelect, isPlaying = false, globalTime = 0 }) => {
+          const INTERNAL_WIDTH = 1000;
+          const INTERNAL_HEIGHT = 1000;
+          const videoRef = useRef(null);
+
+          const isActive = useMemo(() => {
+              if (!isPlaying) return surface.visible;
+              const start = surface.timelineStart || 0;
+              const end = start + (surface.timelineDuration || 10);
+              return globalTime >= start && globalTime < end;
+          }, [isPlaying, globalTime, surface.visible, surface.timelineStart, surface.timelineDuration]);
+
+          const transformStyle = useMemo(() => {
+            return getPerspectiveTransform(INTERNAL_WIDTH, INTERNAL_HEIGHT, surface.corners);
+          }, [surface.corners]);
+
+          const maskClipPath = useMemo(() => {
+              if (!surface.maskPoints || surface.maskPoints.length < 3) return undefined;
+              const pointsStr = surface.maskPoints.map(p => `${p.x}px ${p.y}px`).join(',');
+              return `polygon(${pointsStr})`;
+          }, [surface.maskPoints]);
+
+          // Handle Video Playback
+          useEffect(() => {
+            if (surface.type === SurfaceType.VIDEO && videoRef.current) {
+                const vid = videoRef.current;
+                vid.volume = surface.volume ?? 1.0;
+                vid.muted = surface.isMuted ?? false;
+                
+                const shouldLoop = surface.loopMode !== 'once';
+                if(vid.loop !== shouldLoop) vid.loop = shouldLoop;
+
+                if (isPlaying) {
+                     if (isActive) {
+                         const start = surface.timelineStart || 0;
+                         const videoOffset = globalTime - start;
+                         
+                         if (Number.isFinite(vid.duration) && vid.duration > 0) {
+                             const diff = Math.abs(vid.currentTime - (videoOffset % vid.duration));
+                             if (diff > 0.5 && !vid.seeking) {
+                                 vid.currentTime = videoOffset % vid.duration; 
+                             }
+                         }
+                         
+                         if (vid.paused) {
+                            vid.play().catch(e => {});
+                         }
+                     } else {
+                         if (!vid.paused) vid.pause();
+                         vid.currentTime = 0;
+                     }
+                } else {
+                    if (isActive) {
+                        if (vid.paused) vid.play().catch(() => {});
+                    } else {
+                        vid.pause();
+                    }
+                }
+            }
+          }, [isPlaying, isActive, globalTime, surface.timelineStart, surface.volume, surface.isMuted, surface.type, surface.loopMode]);
+
+          // Has active mask points?
+          const isLineAndMasked = (surface.type === SurfaceType.LINE && surface.maskPoints && surface.maskPoints.length >= 2);
+
+          const shapeStyle = useMemo(() => {
+            if (surface.maskPoints && surface.maskPoints.length >= 3) return {};
+            if (surface.type === SurfaceType.LINE) return {}; 
+            switch (surface.shape) {
+              case 'circle': return { borderRadius: '50%', overflow: 'hidden' };
+              case 'triangle': return { clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)', overflow: 'hidden' };
+              case 'rect': default: return { overflow: 'hidden' };
+            }
+          }, [surface.shape, surface.type, surface.maskPoints]);
+
+          const renderContent = () => {
+              // If masked line, we render nothing INSIDE the transform div, but render SVG overlay instead
+              if (surface.type === SurfaceType.LINE && surface.maskPoints && surface.maskPoints.length > 0) return null;
+
+              const isAnimated = surface.animationSpeed && surface.animationSpeed > 0;
+              const animType = surface.animationType || 'simple';
+              let animClass = '';
+              if (isAnimated) {
+                  if (surface.type === SurfaceType.LINE) {
+                      if (animType === 'chase') animClass = 'animate-dash';
+                      else if (animType === 'draw') animClass = 'animate-draw';
+                      else animClass = 'animate-glow';
+                  } else if (surface.type === SurfaceType.COLOR) {
+                      animClass = animType === 'chase' ? 'animate-scanner' : 'animate-glow';
+                  } else if (surface.type === SurfaceType.IMAGE) {
+                      animClass = 'animate-hue';
+                  }
+              }
+              const animStyle = isAnimated ? { animationDuration: `${surface.animationSpeed}s` } : {};
+
+              switch(surface.type) {
+                  case SurfaceType.VIDEO:
+                      return <video ref={videoRef} src={surface.src} className="w-full h-full object-fill block" playsInline webkit-playsinline="true" preload="auto" muted={surface.isMuted} />;
+                  case SurfaceType.IMAGE:
+                      return <img src={surface.src} alt={surface.name} className={`w-full h-full object-fill block ${animClass}`} style={animStyle} draggable={false} />;
+                  case SurfaceType.LINE:
+                      const strokeWidth = (surface.lineWidth || 10) * 2; 
+                      const inset = strokeWidth / 2;
+                      const w = INTERNAL_WIDTH - strokeWidth;
+                      const h = INTERNAL_HEIGHT - strokeWidth;
+                      let dashArray = (isAnimated && animType === 'chase') ? `${w/4} ${w/4}` : undefined;
+                      let svgTransform = undefined;
+                      if (isAnimated && animType === 'draw') {
+                          let perimeter = 4000;
+                          if (surface.shape === 'rect') perimeter = 2 * (w + h);
+                          if (surface.shape === 'circle') perimeter = Math.PI * w; 
+                          if (surface.shape === 'triangle') perimeter = w + 2 * Math.sqrt(Math.pow(w/2, 2) + Math.pow(h, 2)); 
+                          
+                          dashArray = `${perimeter}`;
+                          animStyle.strokeDasharray = perimeter;
+                          animStyle.strokeDashoffset = perimeter;
+                          if (surface.shape === 'rect') { svgTransform = 'rotate(-90deg)'; animStyle.transformOrigin = 'center'; }
+                          if (surface.shape === 'circle') { svgTransform = 'rotate(90deg)'; animStyle.transformOrigin = 'center'; }
+                      }
+                      return (
+                          <svg width="100%" height="100%" viewBox={`0 0 ${INTERNAL_WIDTH} ${INTERNAL_HEIGHT}`} className="overflow-visible" style={{ transform: svgTransform }}>
+                              {surface.shape === 'rect' && <rect x={inset} y={inset} width={w} height={h} fill="none" stroke={surface.src} strokeWidth={strokeWidth} strokeDasharray={dashArray} className={animClass} style={animStyle}/>}
+                              {surface.shape === 'circle' && <circle cx={INTERNAL_WIDTH / 2} cy={INTERNAL_HEIGHT / 2} r={w / 2} fill="none" stroke={surface.src} strokeWidth={strokeWidth} strokeDasharray={dashArray} className={animClass} style={animStyle}/>}
+                              {surface.shape === 'triangle' && <polygon points={`${INTERNAL_WIDTH/2},${inset} ${INTERNAL_WIDTH - inset},${INTERNAL_HEIGHT - inset} ${inset},${INTERNAL_HEIGHT - inset}`} fill="none" stroke={surface.src} strokeWidth={strokeWidth} strokeDasharray={dashArray} className={animClass} style={animStyle}/>}
+                          </svg>
+                      );
+                  case SurfaceType.COLOR:
+                      const colorStyle = { backgroundColor: surface.src, ...animStyle };
+                      if (isAnimated && animType === 'chase') {
+                          colorStyle.backgroundColor = 'transparent'; 
+                          colorStyle.backgroundImage = `linear-gradient(110deg, ${surface.src} 20%, #ffffff 50%, ${surface.src} 80%)`;
+                      }
+                      return <div className={`w-full h-full ${animClass}`} style={colorStyle} />;
+                  default:
+                      return <div className="w-full h-full" style={{ backgroundColor: surface.src }} />;
+              }
+          }
+
+          if (!isActive) return null;
+          const rotation = surface.rotation || 0;
+
+          // Masked Line Logic (Corrected Speed)
+          const isAnimated = surface.animationSpeed && surface.animationSpeed > 0;
+          const animType = surface.animationType || 'simple';
+          let maskAnimClass = '';
+          const maskAnimStyle = isAnimated ? { animationDuration: `${surface.animationSpeed}s` } : {};
+          
+          if (isLineAndMasked && isAnimated) {
+             const perimeter = getPolygonPerimeter(surface.maskPoints);
+             if (animType === 'chase') {
+                 maskAnimClass = 'animate-dash';
+                 maskAnimStyle.strokeDasharray = `${perimeter/20} ${perimeter/20}`; // Dynamic dash relative to size
+             }
+             else if (animType === 'draw') {
+                 maskAnimClass = 'animate-draw';
+                 // FIX: Use calculated perimeter instead of fixed 10000
+                 maskAnimStyle.strokeDasharray = `${perimeter}`; 
+                 maskAnimStyle.strokeDashoffset = `${perimeter}`; 
+             }
+             else {
+                 maskAnimClass = 'animate-glow';
+             }
+          }
+
+          return (
+            <div className="absolute top-0 left-0 w-full h-full pointer-events-none select-none" 
+                 style={{ zIndex: surface.zIndex, clipPath: isLineAndMasked ? 'none' : maskClipPath }}>
+              {isLineAndMasked && (
+                 <svg className="absolute inset-0 w-full h-full overflow-visible">
+                     <polygon points={surface.maskPoints.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={surface.src} strokeWidth={surface.lineWidth || 10} className={maskAnimClass} style={maskAnimStyle} />
+                 </svg>
+              )}
+              {/* Only render content container if NOT a masked line (masked line is rendered via SVG above) */}
+              <div className="origin-top-left absolute pointer-events-auto transition-opacity gpu-accelerated"
+                style={{ width: `${INTERNAL_WIDTH}px`, height: `${INTERNAL_HEIGHT}px`, transform: transformStyle, opacity: isLineAndMasked ? 0 : surface.opacity }}
+                onClick={(e) => { if (!isPlaying) { e.stopPropagation(); onSelect(surface.id); } }}>
+                <div style={{ width: '100%', height: '100%', transform: `rotate(${rotation}deg)`, transformOrigin: 'center' }}>
+                    <div style={{ width: '100%', height: '100%', ...shapeStyle }}>{renderContent()}</div>
+                    {isSelected && !isPlaying && (
+                    <div className="absolute inset-0 border-4 border-blue-500/50 pointer-events-none mix-blend-screen" style={{
+                        borderRadius: (!surface.maskPoints && surface.shape === 'circle') ? '50%' : undefined,
+                        clipPath: (!surface.maskPoints && surface.shape === 'triangle') ? 'polygon(50% 0%, 0% 100%, 100% 100%)' : undefined
+                    }} />
+                    )}
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        const Sidebar = ({ surfaces, selectedId, editMode, onSetEditMode, onAddSurface, onSelect, onUpdateSurface, onDeleteSurface, onLoadProject, onToggleFullscreen, onCloseMobile, isPlaying, currentTime, onPlay, onStop, onReset }) => {
+          const [uploadShape, setUploadShape] = useState('rect');
+          const loadFileInputRef = useRef(null);
+
+          const handleFileUpload = (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            e.target.value = '';
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const result = event.target?.result;
+                if (!result) return;
+                if (file.type.startsWith('video/')) {
+                    const video = document.createElement('video');
+                    video.preload = 'metadata';
+                    video.onloadedmetadata = () => {
+                        const w = video.videoWidth; const h = video.videoHeight;
+                        const duration = video.duration || 10;
+                        const scale = 400 / Math.max(w, h);
+                        let finalW = w * scale; let finalH = h * scale;
+                        if (uploadShape === 'circle') { const size = Math.max(finalW, finalH); finalW = size; finalH = size; }
+                        onAddSurface(SurfaceType.VIDEO, result, uploadShape, finalW, finalH, duration);
+                    };
+                    video.src = result;
+                } else if (file.type.startsWith('image/')) {
+                    const img = new Image();
+                    img.onload = () => {
+                        const w = img.width; const h = img.height;
+                        const scale = 400 / Math.max(w, h);
+                        let finalW = w * scale; let finalH = h * scale;
+                        if (uploadShape === 'circle') { const size = Math.max(finalW, finalH); finalW = size; finalH = size; }
+                        onAddSurface(SurfaceType.IMAGE, result, uploadShape, finalW, finalH);
+                    };
+                    img.src = result;
+                }
+            };
+            reader.readAsDataURL(file);
+          };
+
+          const handleSaveProject = () => {
+              const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(surfaces));
+              const downloadAnchorNode = document.createElement('a');
+              downloadAnchorNode.setAttribute("href", dataStr);
+              downloadAnchorNode.setAttribute("download", `lumimap_projekt_${new Date().toISOString().slice(0,10)}.json`);
+              document.body.appendChild(downloadAnchorNode);
+              downloadAnchorNode.click();
+              downloadAnchorNode.remove();
+          };
+
+          const handleLoadFileChange = (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = (ev) => {
+                  try {
+                      const loaded = JSON.parse(ev.target?.result);
+                      onLoadProject(loaded);
+                  } catch (err) { alert("Fehler beim Laden."); }
+              };
+              reader.readAsText(file);
+              e.target.value = '';
+          };
+
+          const selectedSurface = surfaces.find(s => s.id === selectedId);
+          
+          const toggleMaskMode = (enabled) => {
+              if (!selectedSurface) return;
+              if (enabled) {
+                  onSetEditMode('mask');
+                  // Only initialize mask points if they don't exist yet
+                  if (!selectedSurface.maskPoints || selectedSurface.maskPoints.length === 0) {
+                      let newPoints = [...selectedSurface.corners];
+                      if (selectedSurface.shape === 'triangle') {
+                          const [p0, p1, p2, p3] = selectedSurface.corners;
+                          const top = { x: (p0.x + p1.x)/2, y: (p0.y + p1.y)/2 };
+                          newPoints = [top, p2, p3]; 
+                      } else if (selectedSurface.shape === 'circle') {
+                          newPoints = [];
+                          const steps = 16;
+                          const [p0, p1, p2, p3] = selectedSurface.corners;
+                          for(let i=0; i<steps; i++) {
+                              const th = (i/steps)*Math.PI*2 - Math.PI/2;
+                              const u = 0.5 + 0.5 * Math.cos(th); const v = 0.5 + 0.5 * Math.sin(th);
+                              const x = (1-u)*(1-v)*p0.x + u*(1-v)*p1.x + u*v*p2.x + (1-u)*v*p3.x;
+                              const y = (1-u)*(1-v)*p0.y + u*(1-v)*p1.y + u*v*p2.y + (1-u)*v*p3.y;
+                              newPoints.push({x,y});
+                          }
+                      }
+                      onUpdateSurface(selectedSurface.id, { maskPoints: newPoints });
+                  }
+              } else { 
+                  // Switch to perspective mode but keep mask points (do not delete them)
+                  onSetEditMode('perspective'); 
+              }
+          };
+          const resetMask = () => { if (!selectedSurface) return; onUpdateSurface(selectedSurface.id, { maskPoints: [...selectedSurface.corners] }); };
+          const clearMask = () => { if (!selectedSurface) return; onUpdateSurface(selectedSurface.id, { maskPoints: undefined }); onSetEditMode('perspective'); };
+          const formatTime = (t) => {
+              const m = Math.floor(t / 60); const s = Math.floor(t % 60); const ms = Math.floor((t % 1) * 10);
+              return `${m}:${s.toString().padStart(2, '0')}.${ms}`;
+          };
+          
+          const handleSetVideoDuration = () => {
+              if (!selectedSurface || selectedSurface.type !== SurfaceType.VIDEO) return;
+              const baseDur = selectedSurface.videoDuration || 10;
+              const loops = (selectedSurface.loopMode === 'custom' ? (selectedSurface.loopCount || 1) : 1);
+              const newDur = baseDur * loops;
+              onUpdateSurface(selectedSurface.id, { timelineDuration: parseFloat(newDur.toFixed(2)) });
+          };
+
+          return (
+            <div className="w-full md:w-80 h-full bg-zinc-900 border-r border-zinc-800 flex flex-col shadow-2xl z-50 overflow-hidden relative">
+              <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-950">
+                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">Projection Mapping Tool</h1>
+                <div className="flex gap-4">
+                    <button onClick={onCloseMobile} className="text-zinc-400 hover:text-white" title="Menü"><i className="fa-solid fa-eye-slash"></i></button>
+                    <button onClick={onToggleFullscreen} className="text-zinc-400 hover:text-white" title="Vollbild"><i className="fa-solid fa-expand"></i></button>
+                    <button onClick={onCloseMobile} className="md:hidden text-zinc-400 hover:text-white"><i className="fa-solid fa-xmark"></i></button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4 pb-20">
+                    <div className="flex gap-2 mb-4">
+                        <button onClick={handleSaveProject} className="flex-1 py-2 bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-300 flex items-center justify-center gap-2"><i className="fa-solid fa-floppy-disk"></i> Speichern</button>
+                        <button onClick={() => loadFileInputRef.current?.click()} className="flex-1 py-2 bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-300 flex items-center justify-center gap-2"><i className="fa-solid fa-folder-open"></i> Laden</button>
+                        <input type="file" ref={loadFileInputRef} onChange={handleLoadFileChange} accept=".json" className="hidden" />
+                    </div>
+                    <hr className="border-zinc-800 mb-4" />
+                    <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-500 uppercase">Medien Upload</label>
+                        <div className="flex bg-zinc-800 p-1 rounded border border-zinc-700 mb-1">
+                             {['rect', 'circle', 'triangle'].map((shape) => (
+                                <button key={shape} onClick={() => setUploadShape(shape)} className={`flex-1 py-1 rounded text-xs flex justify-center items-center ${uploadShape === shape ? 'bg-zinc-600 text-white shadow-sm' : 'text-zinc-400'}`}><i className={`fa-regular ${shape === 'rect' ? 'fa-square' : shape === 'circle' ? 'fa-circle' : 'fa-play fa-rotate-270'}`}></i></button>
+                            ))}
+                        </div>
+                        <label className="flex items-center justify-center p-3 border border-zinc-700 rounded bg-zinc-800 hover:bg-zinc-700 cursor-pointer"><i className="fa-solid fa-upload mr-2 text-zinc-400"></i><span className="text-xs text-zinc-300 uppercase font-bold">Datei wählen</span><input type="file" className="hidden" accept="image/*,video/*" onChange={handleFileUpload} /></label>
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-500 uppercase">Farbflächen</label>
+                        <div className="grid grid-cols-3 gap-2">
+                            <button onClick={() => onAddSurface(SurfaceType.COLOR, '#ffffff', 'rect')} className="p-2 border border-zinc-700 rounded bg-zinc-800 flex flex-col items-center"><i className="fa-regular fa-square text-zinc-400 mb-1"></i><span className="text-[10px]">Rechteck</span></button>
+                            <button onClick={() => onAddSurface(SurfaceType.COLOR, '#ffffff', 'circle')} className="p-2 border border-zinc-700 rounded bg-zinc-800 flex flex-col items-center"><i className="fa-regular fa-circle text-zinc-400 mb-1"></i><span className="text-[10px]">Kreis</span></button>
+                            <button onClick={() => onAddSurface(SurfaceType.COLOR, '#ffffff', 'triangle')} className="p-2 border border-zinc-700 rounded bg-zinc-800 flex flex-col items-center"><i className="fa-solid fa-play -rotate-90 text-xs text-zinc-400 mb-1"></i><span className="text-[10px]">Dreieck</span></button>
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-500 uppercase">Neon Linien</label>
+                        <div className="grid grid-cols-3 gap-2">
+                            <button onClick={() => onAddSurface(SurfaceType.LINE, '#00ffff', 'rect')} className="p-2 border border-zinc-700 rounded bg-zinc-800 flex flex-col items-center"><i className="fa-regular fa-square text-cyan-400 mb-1"></i><span className="text-[10px]">Rechteck</span></button>
+                            <button onClick={() => onAddSurface(SurfaceType.LINE, '#00ffff', 'circle')} className="p-2 border border-zinc-700 rounded bg-zinc-800 flex flex-col items-center"><i className="fa-regular fa-circle text-cyan-400 mb-1"></i><span className="text-[10px]">Kreis</span></button>
+                            <button onClick={() => onAddSurface(SurfaceType.LINE, '#00ffff', 'triangle')} className="p-2 border border-zinc-700 rounded bg-zinc-800 flex flex-col items-center"><i className="fa-solid fa-play -rotate-90 text-xs text-cyan-400 mb-1"></i><span className="text-[10px]">Dreieck</span></button>
+                        </div>
+                    </div>
+                    <div className="space-y-2 mt-4 pt-4 border-t border-zinc-800">
+                      <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Ebenen Liste</h3>
+                      {surfaces.map(s => (
+                        <div key={s.id} className={`flex items-center p-2 rounded border cursor-pointer group ${selectedId === s.id ? 'bg-blue-900/30 border-blue-500/50' : 'bg-zinc-800 border-zinc-700'}`} onClick={() => onSelect(s.id)}>
+                          <div className="w-8 h-8 rounded bg-zinc-900 mr-3 border border-zinc-700 flex items-center justify-center text-xs text-zinc-500">{s.type === 'VIDEO' ? <i className="fa-solid fa-video"></i> : s.type === 'IMAGE' ? <i className="fa-regular fa-image"></i> : <div className="w-3 h-3 rounded-full" style={{background: s.src}}></div>}</div>
+                          <div className="flex-1 min-w-0"><div className="text-sm font-medium text-zinc-200 truncate">{s.name}</div><div className="text-[10px] text-zinc-500 uppercase">{s.type} {s.maskPoints ? '(Maske)' : ''}</div></div>
+                          <button onClick={(e) => { e.stopPropagation(); onUpdateSurface(s.id, { visible: !s.visible }); }} className={`p-1.5 rounded hover:bg-zinc-700 ${s.visible ? 'text-zinc-400' : 'text-zinc-600'}`}><i className={`fa-solid ${s.visible ? 'fa-eye' : 'fa-eye-slash'}`}></i></button>
+                          <button onClick={(e) => { e.stopPropagation(); onDeleteSurface(s.id); }} className="p-1.5 rounded hover:bg-red-900/50 text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100"><i className="fa-solid fa-trash"></i></button>
+                        </div>
+                      ))}
+                    </div>
+                {selectedSurface && (
+                  <div className="border-t border-zinc-800 pt-4 mt-2 mb-10">
+                    <h3 className="text-xs font-semibold text-zinc-500 uppercase mb-3">Bearbeiten</h3>
+                    <div className="bg-zinc-800/50 rounded p-2 mb-4 border border-zinc-700">
+                        <div className="flex items-center mb-1 text-xs text-blue-400 font-bold uppercase"><i className="fa-solid fa-clock mr-2"></i> Timeline</div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div><label className="text-[10px] text-zinc-400">Start (sek)</label><input type="number" min="0" step="0.1" value={Number.isFinite(selectedSurface.timelineStart) ? selectedSurface.timelineStart : ''} onChange={(e) => onUpdateSurface(selectedSurface.id, { timelineStart: parseFloat(e.target.value) })} className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-white"/></div>
+                            <div><label className="text-[10px] text-zinc-400">Dauer (sek)</label><input type="number" min="0.1" step="0.1" value={Number.isFinite(selectedSurface.timelineDuration) ? selectedSurface.timelineDuration : ''} onChange={(e) => onUpdateSurface(selectedSurface.id, { timelineDuration: parseFloat(e.target.value) })} className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-white"/></div>
+                        </div>
+                    </div>
+                    
+                    {/* VIDEO LOOP CONTROLS */}
+                    {selectedSurface.type === SurfaceType.VIDEO && (
+                      <div className="bg-zinc-800/50 rounded p-2 mb-4 border border-zinc-700">
+                         <div className="flex items-center mb-1 text-xs text-green-400 font-bold uppercase"><i className="fa-solid fa-repeat mr-2"></i> Video Loop & Dauer</div>
+                         <div className="space-y-2">
+                            <div className="flex gap-2 text-xs">
+                               <label className="flex-1 cursor-pointer"><input type="radio" name="loop" checked={!selectedSurface.loopMode || selectedSurface.loopMode === 'infinite'} onChange={() => onUpdateSurface(selectedSurface.id, { loopMode: 'infinite' })} className="mr-1"/> Unendlich</label>
+                               <label className="flex-1 cursor-pointer"><input type="radio" name="loop" checked={selectedSurface.loopMode === 'once'} onChange={() => onUpdateSurface(selectedSurface.id, { loopMode: 'once' })} className="mr-1"/> Einmal</label>
+                            </div>
+                            <div className="flex gap-2 text-xs items-center">
+                               <label className="cursor-pointer flex items-center"><input type="radio" name="loop" checked={selectedSurface.loopMode === 'custom'} onChange={() => onUpdateSurface(selectedSurface.id, { loopMode: 'custom' })} className="mr-1"/> Benutzerdefiniert:</label>
+                               <input type="number" min="1" max="100" value={selectedSurface.loopCount || 1} onChange={(e) => onUpdateSurface(selectedSurface.id, { loopCount: parseInt(e.target.value), loopMode: 'custom' })} className="w-16 bg-zinc-900 border border-zinc-700 rounded px-1 py-0.5 text-center" disabled={selectedSurface.loopMode !== 'custom'} />
+                               <span className="text-zinc-500">Mal</span>
+                            </div>
+                            {selectedSurface.loopMode !== 'infinite' && (
+                                <button onClick={handleSetVideoDuration} className="w-full py-1.5 bg-zinc-700 hover:bg-zinc-600 rounded text-xs text-white mt-1">Dauer auf Video anpassen ({((selectedSurface.videoDuration || 0) * (selectedSurface.loopMode==='custom' ? (selectedSurface.loopCount||1) : 1)).toFixed(1)}s)</button>
+                            )}
+                         </div>
+                      </div>
+                    )}
+
+                    <div className="flex bg-zinc-800 p-1 rounded border border-zinc-700 mb-4">
+                        <button onClick={() => toggleMaskMode(false)} className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors ${editMode === 'perspective' ? 'bg-blue-600 text-white' : 'text-zinc-400'}`}><i className="fa-solid fa-arrows-up-down-left-right mr-1"></i> 4-Punkt</button>
+                        <button onClick={() => toggleMaskMode(true)} className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors ${editMode === 'mask' ? 'bg-green-600 text-white' : 'text-zinc-400'}`}><i className="fa-solid fa-draw-polygon mr-1"></i> Maske</button>
+                    </div>
+                    {editMode === 'mask' && (
+                        <div className="mb-4 p-2 bg-zinc-800/50 border border-green-900/30 rounded space-y-2">
+                            <p className="text-[10px] text-zinc-400"><i className="fa-solid fa-info-circle mr-1"></i> Klicke auf <b>+</b> um Punkte hinzuzufügen.<br/>Doppelklick zum Löschen.</p>
+                            <div className="flex gap-2"><button onClick={resetMask} className="flex-1 py-1 bg-zinc-700 rounded text-xs text-white">Reset Form</button><button onClick={clearMask} className="flex-1 py-1 bg-red-900/30 border border-red-900/50 rounded text-xs text-red-300">Maske löschen</button></div>
+                        </div>
+                    )}
+                    <div className={`space-y-3 ${editMode === 'mask' ? 'opacity-50 pointer-events-none' : ''}`}>
+                         <div className="space-y-1"><label className="text-xs text-zinc-400">Grundform</label><select value={selectedSurface.shape} onChange={(e) => onUpdateSurface(selectedSurface.id, { shape: e.target.value })} className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 text-sm text-white outline-none"><option value="rect">Rechteck</option><option value="circle">Kreis</option><option value="triangle">Dreieck</option></select></div>
+                         
+                         <div className="space-y-1">
+                            <div className="flex justify-between text-xs text-zinc-400"><label>Rotation</label><span>{selectedSurface.rotation || 0}°</span></div>
+                            <input type="range" min="0" max="360" step="1" value={selectedSurface.rotation || 0} onChange={(e) => onUpdateSurface(selectedSurface.id, { rotation: parseInt(e.target.value) })} className="w-full accent-blue-500 h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer"/>
+                         </div>
+
+                         {(selectedSurface.type === SurfaceType.COLOR || selectedSurface.type === SurfaceType.LINE) && (
+                             <div className="space-y-1"><label className="text-xs text-zinc-400">Farbe</label><div className="flex gap-2"><input type="color" value={selectedSurface.src} onChange={(e) => onUpdateSurface(selectedSurface.id, { src: e.target.value })} className="w-8 h-8 rounded cursor-pointer border-none bg-transparent"/><input type="text" value={selectedSurface.src} onChange={(e) => onUpdateSurface(selectedSurface.id, { src: e.target.value })} className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm text-white" /></div></div>
+                         )}
+                         {(selectedSurface.type === SurfaceType.LINE || selectedSurface.type === SurfaceType.IMAGE || selectedSurface.type === SurfaceType.COLOR) && (
+                            <div className="space-y-1">
+                                <div className="flex justify-between text-xs text-zinc-400"><label>Animation</label><input type="checkbox" checked={!!selectedSurface.animationSpeed} onChange={(e) => onUpdateSurface(selectedSurface.id, { animationSpeed: e.target.checked ? 5 : 0 })} /></div>
+                                 {selectedSurface.animationSpeed ? (
+                                     <>
+                                        <input type="range" min="0.5" max="10" step="0.5" value={selectedSurface.animationSpeed} onChange={(e) => onUpdateSurface(selectedSurface.id, { animationSpeed: parseFloat(e.target.value) })} className="w-full accent-cyan-500 h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer"/>
+                                        {(selectedSurface.type === SurfaceType.LINE || selectedSurface.type === SurfaceType.COLOR) && (
+                                            <div className="flex gap-1 mt-1">
+                                                <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'simple' })} className={`flex-1 text-[9px] py-1 border rounded ${(!selectedSurface.animationType || selectedSurface.animationType==='simple') ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>Glow</button>
+                                                <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'chase' })} className={`flex-1 text-[9px] py-1 border rounded ${selectedSurface.animationType==='chase' ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>Lauflicht</button>
+                                                <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'draw' })} className={`flex-1 text-[9px] py-1 border rounded ${selectedSurface.animationType==='draw' ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>Aufbau</button>
+                                            </div>
+                                        )}
+                                     </>
+                                 ) : null}
+                            </div>
+                        )}
+                        {selectedSurface.type === SurfaceType.LINE && (
+                            <div className="space-y-1"><div className="flex justify-between text-xs text-zinc-400"><label>Linienbreite</label><span>{selectedSurface.lineWidth || 10}px</span></div><input type="range" min="1" max="100" value={selectedSurface.lineWidth || 10} onChange={(e) => onUpdateSurface(selectedSurface.id, { lineWidth: parseInt(e.target.value) })} className="w-full accent-cyan-500 h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer"/></div>
+                        )}
+                        {selectedSurface.type === SurfaceType.VIDEO && (
+                            <>
+                                <div className="space-y-1"><div className="flex justify-between text-xs text-zinc-400"><label>Vol</label><span>{Math.round((selectedSurface.volume ?? 1) * 100)}%</span></div><input type="range" min="0" max="1" step="0.05" value={Number.isFinite(selectedSurface.volume) ? selectedSurface.volume : 1} onChange={(e) => onUpdateSurface(selectedSurface.id, { volume: parseFloat(e.target.value) })} className="w-full accent-green-500 h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer"/></div>
+                                <div className="space-y-1"><div className="flex justify-between text-xs text-zinc-400"><label>Ton</label><span>{selectedSurface.isMuted ? 'Stumm' : 'An'}</span></div><div className="flex items-center gap-2"><button onClick={() => onUpdateSurface(selectedSurface.id, { isMuted: !selectedSurface.isMuted })} className={`w-8 h-5 rounded-full relative transition-colors ${!selectedSurface.isMuted ? 'bg-green-600' : 'bg-zinc-700'}`}><div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${!selectedSurface.isMuted ? 'left-4' : 'left-1'}`}></div></button></div></div>
+                            </>
+                        )}
+                        <div className="space-y-1"><label className="text-xs text-zinc-400">Deckkraft</label><input type="range" min="0" max="1" step="0.01" value={selectedSurface.opacity} onChange={(e) => onUpdateSurface(selectedSurface.id, { opacity: parseFloat(e.target.value) })} className="w-full accent-blue-500 h-1.5 bg-zinc-700 rounded-lg appearance-none"/></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="bg-zinc-950 border-t border-zinc-800 p-4">
+                  <div className="flex items-center justify-between mb-2"><span className="text-xs text-zinc-500 font-mono">{formatTime(currentTime)}</span><div className="flex gap-2">{!isPlaying ? (<button onClick={onPlay} className="w-8 h-8 rounded-full bg-green-600 hover:bg-green-500 text-white flex items-center justify-center"><i className="fa-solid fa-play"></i></button>) : (<button onClick={onStop} className="w-8 h-8 rounded-full bg-yellow-600 hover:bg-yellow-500 text-white flex items-center justify-center"><i className="fa-solid fa-pause"></i></button>)}<button onClick={onReset} className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center"><i className="fa-solid fa-stop"></i></button></div></div>
+                  <div className="h-1 bg-zinc-800 rounded overflow-hidden"><div className="h-full bg-blue-500 w-full animate-pulse opacity-20"></div></div>
+              </div>
+            </div>
+          );
+        };
+
+        const App = () => {
+          const [surfaces, setSurfaces] = useState([]);
+          const [selectedId, setSelectedId] = useState(null);
+          const [isUIHidden, setIsUIHidden] = useState(false);
+          const [editMode, setEditMode] = useState('perspective');
+          const [isPlaying, setIsPlaying] = useState(false);
+          const [currentTime, setCurrentTime] = useState(0);
+          
+          // PLAYBACK SETTINGS
+          const [showPlayModal, setShowPlayModal] = useState(false);
+          const [playConfig, setPlayConfig] = useState({ loopDuration: 30, mode: 'infinite', count: 1, stopAfter: 60 });
+          const [playLoopCount, setPlayLoopCount] = useState(0);
+
+          const timerRef = useRef(null);
+          const [draggingHandle, setDraggingHandle] = useState(null);
+          const [draggingSurface, setDraggingSurface] = useState(null);
+          const [lastMousePos, setLastMousePos] = useState(null);
+          const containerRef = useRef(null);
+
+          // Calculate default loop duration based on layers
+          const getMaxDuration = () => {
+              let max = 10;
+              surfaces.forEach(s => {
+                  const end = (s.timelineStart || 0) + (s.timelineDuration || 10);
+                  if (end > max) max = end;
+              });
+              return max;
+          };
+
+          const handleOpenPlayModal = () => {
+              setPlayConfig(prev => ({ ...prev, loopDuration: getMaxDuration() }));
+              setShowPlayModal(true);
+          };
+
+          const handleStartPlayback = () => {
+              setShowPlayModal(false);
+              setIsPlaying(true);
+              setPlayLoopCount(0);
+              setCurrentTime(0);
+              setSelectedId(null);
+          };
+
+          const handleStop = () => setIsPlaying(false);
+          const handleReset = () => { setIsPlaying(false); setCurrentTime(0); };
+
+          useEffect(() => {
+              if (isPlaying) {
+                  const startTime = Date.now() - (currentTime * 1000);
+                  const startTimestamp = Date.now();
+
+                  timerRef.current = window.setInterval(() => {
+                      const now = Date.now();
+                      const rawTime = (now - startTime) / 1000;
+                      
+                      // Handle Global Stop Timer
+                      if (playConfig.mode === 'timer' && (now - startTimestamp)/1000 >= playConfig.stopAfter) {
+                          handleStop();
+                          return;
+                      }
+
+                      // Handle Looping
+                      if (playConfig.loopDuration > 0 && rawTime >= playConfig.loopDuration) {
+                          if (playConfig.mode === 'count') {
+                               const newLoopCount = playLoopCount + 1;
+                               if (newLoopCount >= playConfig.count) {
+                                   handleStop();
+                                   return;
+                               }
+                               setPlayLoopCount(newLoopCount);
+                          }
+                      }
+                      
+                      if (playConfig.loopDuration > 0) {
+                          setCurrentTime(rawTime % playConfig.loopDuration);
+                      } else {
+                          setCurrentTime(rawTime);
+                      }
+
+                  }, 50);
+              } else { if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; } }
+              return () => { if (timerRef.current) clearInterval(timerRef.current); };
+          }, [isPlaying, playConfig, playLoopCount]); // Re-bind if config changes, though mostly static during play
+
+          const getLocalPos = useCallback((clientX, clientY) => {
+            if (!containerRef.current) return { x: clientX, y: clientY };
+            const rect = containerRef.current.getBoundingClientRect();
+            return { x: clientX - rect.left, y: clientY - rect.top };
+          }, []);
+
+          const handleAddSurface = (type, src, shape = 'rect', initialWidth = 300, initialHeight = 300, duration = 0) => {
+            if (!containerRef.current) return;
+            const rect = containerRef.current.getBoundingClientRect();
+            const cx = rect.width / 2; const cy = rect.height / 2;
+            const halfW = initialWidth / 2; const halfH = initialHeight / 2;
+            const newSurface = {
+              id: uuidv4(), name: `Fläche ${surfaces.length + 1}`, type, shape, src,
+              corners: [{ x: cx - halfW, y: cy - halfH }, { x: cx + halfW, y: cy - halfH }, { x: cx + halfW, y: cy + halfH }, { x: cx - halfW, y: cy + halfH }],
+              opacity: 1, visible: true, zIndex: surfaces.length + 1, lineWidth: 10, animationSpeed: 0, animationType: 'simple', isMuted: false, volume: 1, 
+              timelineStart: 0, timelineDuration: 10, rotation: 0, 
+              videoDuration: duration, loopMode: 'infinite', loopCount: 1
+            };
+            setSurfaces(prev => [...prev, newSurface]); setSelectedId(newSurface.id); setEditMode('perspective');
+          };
+
+          const handleUpdateSurface = (id, updates) => setSurfaces(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+          const handleDeleteSurface = (id) => { setSurfaces(prev => prev.filter(s => s.id !== id)); if (selectedId === id) setSelectedId(null); };
+          const handleLoadProject = (loaded) => { if(Array.isArray(loaded)){ setSurfaces(loaded); setSelectedId(null); } else { alert("Fehler"); } };
+
+          const handleMouseDown = (e) => { if (isPlaying) return; if (e.target === containerRef.current) setSelectedId(null); };
+          const getEventClientPos = (e) => { if ('touches' in e) return { x: e.touches[0].clientX, y: e.touches[0].clientY }; return { x: e.clientX, y: e.clientY }; };
+          
+          const handleHandleStart = (e, surfaceId, index, isMask) => { if (isPlaying) return; e.stopPropagation(); if ('touches' in e) e.preventDefault(); setDraggingHandle({ surfaceId, index, isMask }); setSelectedId(surfaceId); };
+          const handleHandleDoubleClick = (e, surfaceId, index, isMask) => { if (isPlaying) return; e.stopPropagation(); if (!isMask) return; const s = surfaces.find(s => s.id === surfaceId); if (!s || !s.maskPoints || s.maskPoints.length <= 3) return; const newMask = [...s.maskPoints]; newMask.splice(index, 1); handleUpdateSurface(surfaceId, { maskPoints: newMask }); };
+          const handleGhostStart = (e, surfaceId, insertIndex) => { if (isPlaying) return; e.stopPropagation(); if ('touches' in e) e.preventDefault(); const s = surfaces.find(s => s.id === surfaceId); if (!s || !s.maskPoints) return; const len = s.maskPoints.length; const prevIndex = (insertIndex - 1 + len) % len; const p1 = s.maskPoints[prevIndex]; const p2 = s.maskPoints[insertIndex % len]; const midPoint = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }; const newMask = [...s.maskPoints]; newMask.splice(insertIndex, 0, midPoint); handleUpdateSurface(surfaceId, { maskPoints: newMask }); setDraggingHandle({ surfaceId, index: insertIndex, isMask: true }); setSelectedId(surfaceId); };
+          const handleSurfaceStart = (e, surfaceId) => { if (isPlaying) return; if (draggingHandle) return; e.stopPropagation(); if ('touches' in e) e.preventDefault(); const { x, y } = getEventClientPos(e); setSelectedId(surfaceId); setDraggingSurface(surfaceId); setLastMousePos(getLocalPos(x, y)); };
+
+          const processMove = useCallback((clientX, clientY) => {
+            if (isPlaying) return;
+            const mousePos = getLocalPos(clientX, clientY);
+            if (draggingHandle) {
+              setSurfaces(prev => prev.map(s => {
+                if (s.id !== draggingHandle.surfaceId) return s;
+                if (draggingHandle.isMask) { const newMask = [...s.maskPoints]; if (newMask[draggingHandle.index]) newMask[draggingHandle.index] = mousePos; return { ...s, maskPoints: newMask }; }
+                else { const newCorners = [...s.corners]; newCorners[draggingHandle.index] = mousePos; return { ...s, corners: newCorners }; }
+              }));
+            } else if (draggingSurface && lastMousePos) {
+                const dx = mousePos.x - lastMousePos.x; const dy = mousePos.y - lastMousePos.y;
+                setSurfaces(prev => prev.map(s => {
+                    if (s.id !== draggingSurface) return s;
+                    const newCorners = s.corners.map(p => ({ x: p.x + dx, y: p.y + dy }));
+                    let newMaskPoints = s.maskPoints;
+                    if (s.maskPoints) newMaskPoints = s.maskPoints.map(p => ({ x: p.x + dx, y: p.y + dy }));
+                    return { ...s, corners: newCorners, maskPoints: newMaskPoints };
+                }));
+                setLastMousePos(mousePos);
+            }
+          }, [draggingHandle, draggingSurface, lastMousePos, getLocalPos, isPlaying]);
+
+          useEffect(() => {
+            const handleMouseMove = (e) => processMove(e.clientX, e.clientY);
+            const handleTouchMove = (e) => { if (draggingHandle || draggingSurface) e.preventDefault(); processMove(e.touches[0].clientX, e.touches[0].clientY); };
+            const handleEnd = () => { setDraggingHandle(null); setDraggingSurface(null); setLastMousePos(null); };
+            window.addEventListener('mousemove', handleMouseMove); window.addEventListener('mouseup', handleEnd); window.addEventListener('touchmove', handleTouchMove, { passive: false }); window.addEventListener('touchend', handleEnd);
+            return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleEnd); window.removeEventListener('touchmove', handleTouchMove); window.removeEventListener('touchend', handleEnd); };
+          }, [processMove, draggingHandle, draggingSurface]);
+
+          useEffect(() => {
+            const handleKeyDown = (e) => {
+              if (e.key === 'Escape') setSelectedId(null);
+              if (e.key === 'Delete' || e.key === 'Backspace') { if (selectedId && !isPlaying) handleDeleteSurface(selectedId); }
+              if (e.key === 'h') setIsUIHidden(prev => !prev);
+            };
+            window.addEventListener('keydown', handleKeyDown); return () => window.removeEventListener('keydown', handleKeyDown);
+          }, [selectedId, isPlaying]);
+
+          const toggleFullscreen = () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); };
+          const selectedSurface = surfaces.find(s => s.id === selectedId);
+
+          return (
+            <div className="flex w-full overflow-hidden relative font-sans text-gray-200" style={{ height: '100dvh' }}>
+              
+              {/* PLAYBACK CONFIG MODAL */}
+              {showPlayModal && (
+                  <div className="absolute inset-0 bg-black/80 z-[300] flex items-center justify-center p-4">
+                      <div className="w-full max-w-sm bg-zinc-900 border border-zinc-700 rounded-lg p-5 shadow-2xl">
+                          <h3 className="text-lg font-bold text-white mb-4 border-b border-zinc-800 pb-2">Wiedergabe Einstellungen</h3>
+                          
+                          <div className="space-y-4 mb-6">
+                              <div>
+                                  <label className="text-xs text-zinc-400 block mb-1 uppercase font-bold">Sequenz-Länge (Sekunden)</label>
+                                  <input type="number" min="1" step="0.1" value={Number.isFinite(playConfig.loopDuration) ? playConfig.loopDuration : ''} onChange={(e) => setPlayConfig(prev => ({...prev, loopDuration: parseFloat(e.target.value)}))} className="w-full bg-black border border-zinc-700 rounded px-3 py-2 text-white focus:border-green-500 outline-none" />
+                                  <p className="text-[10px] text-zinc-500 mt-1">Zeitpunkt, an dem die Timeline wieder von vorne beginnt.</p>
+                              </div>
+
+                              <div>
+                                  <label className="text-xs text-zinc-400 block mb-1 uppercase font-bold">Wiedergabe-Modus</label>
+                                  <div className="flex flex-col gap-2">
+                                      <label className="flex items-center gap-2 p-2 rounded bg-zinc-800 border border-zinc-700 cursor-pointer">
+                                          <input type="radio" name="playMode" checked={playConfig.mode === 'infinite'} onChange={() => setPlayConfig(prev => ({...prev, mode: 'infinite'}))} className="accent-green-500"/>
+                                          <span className="text-sm">Unendlich wiederholen</span>
+                                      </label>
+                                      
+                                      <div className={`p-2 rounded border border-zinc-700 transition-colors ${playConfig.mode === 'count' ? 'bg-zinc-800 border-green-900' : 'bg-zinc-900'}`}>
+                                          <label className="flex items-center gap-2 cursor-pointer mb-2">
+                                              <input type="radio" name="playMode" checked={playConfig.mode === 'count'} onChange={() => setPlayConfig(prev => ({...prev, mode: 'count'}))} className="accent-green-500"/>
+                                              <span className="text-sm">Anzahl Durchläufe</span>
+                                          </label>
+                                          {playConfig.mode === 'count' && (
+                                              <input type="number" min="1" value={Number.isFinite(playConfig.count) ? playConfig.count : ''} onChange={(e) => setPlayConfig(prev => ({...prev, count: parseInt(e.target.value)}))} className="w-full bg-black border border-zinc-700 rounded px-2 py-1 text-sm text-white"/>
+                                          )}
+                                      </div>
+
+                                      <div className={`p-2 rounded border border-zinc-700 transition-colors ${playConfig.mode === 'timer' ? 'bg-zinc-800 border-green-900' : 'bg-zinc-900'}`}>
+                                          <label className="flex items-center gap-2 cursor-pointer mb-2">
+                                              <input type="radio" name="playMode" checked={playConfig.mode === 'timer'} onChange={() => setPlayConfig(prev => ({...prev, mode: 'timer'}))} className="accent-green-500"/>
+                                              <span className="text-sm">Stop nach Zeit (Sekunden)</span>
+                                          </label>
+                                          {playConfig.mode === 'timer' && (
+                                              <input type="number" min="1" value={Number.isFinite(playConfig.stopAfter) ? playConfig.stopAfter : ''} onChange={(e) => setPlayConfig(prev => ({...prev, stopAfter: parseInt(e.target.value)}))} className="w-full bg-black border border-zinc-700 rounded px-2 py-1 text-sm text-white"/>
+                                          )}
+                                      </div>
+                                  </div>
+                              </div>
+                          </div>
+
+                          <div className="flex gap-3">
+                              <button onClick={() => setShowPlayModal(false)} className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300 font-medium">Abbrechen</button>
+                              <button onClick={handleStartPlayback} className="flex-1 py-2 bg-green-600 hover:bg-green-500 rounded text-white font-bold shadow-lg shadow-green-900/20"><i className="fa-solid fa-play mr-2"></i> Starten</button>
+                          </div>
+                      </div>
+                  </div>
+              )}
+
+              <div className={`absolute left-0 top-0 h-full max-w-full transition-transform duration-300 z-[100] ${isUIHidden ? '-translate-x-full' : 'translate-x-0'}`}>
+                <Sidebar surfaces={surfaces} selectedId={selectedId} editMode={editMode} onSetEditMode={setEditMode} onAddSurface={handleAddSurface} onSelect={setSelectedId} onUpdateSurface={handleUpdateSurface} onDeleteSurface={handleDeleteSurface} onLoadProject={handleLoadProject} onToggleFullscreen={toggleFullscreen} onCloseMobile={() => setIsUIHidden(true)} isPlaying={isPlaying} currentTime={currentTime} onPlay={handleOpenPlayModal} onStop={handleStop} onReset={handleReset}/>
+              </div>
+              <div className={`absolute top-4 left-4 z-[90] transition-opacity duration-300 ${isUIHidden ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                  <button onClick={() => setIsUIHidden(false)} className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center text-white shadow-lg border border-zinc-700 hover:bg-zinc-700"><i className="fa-solid fa-bars"></i></button>
+              </div>
+              <div ref={containerRef} className="flex-1 relative bg-black cursor-crosshair overflow-hidden w-full h-full touch-none" onMouseDown={handleMouseDown}>
+                {surfaces.map(surface => (
+                  <SurfaceLayer key={surface.id} surface={surface} isSelected={selectedId === surface.id && !isUIHidden} onSelect={(id) => { if(!isUIHidden && !isPlaying) setSelectedId(id); }} isPlaying={isPlaying} globalTime={currentTime}/>
+                ))}
+                {selectedSurface && !isUIHidden && !isPlaying && (
+                  <div className="absolute inset-0 pointer-events-none z-[200]">
+                    {editMode === 'perspective' && (
+                        <>
+                            <svg className="absolute inset-0 w-full h-full overflow-visible pointer-events-none"><path d={`M ${selectedSurface.corners[0].x} ${selectedSurface.corners[0].y} L ${selectedSurface.corners[1].x} ${selectedSurface.corners[1].y} L ${selectedSurface.corners[2].x} ${selectedSurface.corners[2].y} L ${selectedSurface.corners[3].x} ${selectedSurface.corners[3].y} Z`} fill="none" stroke="#3b82f6" strokeWidth="1" strokeDasharray="4 2"/></svg>
+                            {selectedSurface.corners.map((corner, idx) => (
+                            <div key={`c-${idx}`} className="absolute w-8 h-8 bg-blue-500/50 border-2 border-white rounded-full shadow cursor-move pointer-events-auto flex items-center justify-center backdrop-blur-sm" style={{ left: corner.x - 16, top: corner.y - 16 }} onMouseDown={(e) => handleHandleStart(e, selectedSurface.id, idx, false)} onTouchStart={(e) => handleHandleStart(e, selectedSurface.id, idx, false)}><div className="w-2 h-2 bg-white rounded-full" /></div>
+                            ))}
+                            <div className="absolute w-10 h-10 bg-white/20 border border-white/50 rounded-full cursor-grab pointer-events-auto flex items-center justify-center backdrop-blur-sm" style={{ left: (selectedSurface.corners[0].x + selectedSurface.corners[2].x) / 2 - 20, top: (selectedSurface.corners[0].y + selectedSurface.corners[2].y) / 2 - 20 }} onMouseDown={(e) => handleSurfaceStart(e, selectedSurface.id)} onTouchStart={(e) => handleSurfaceStart(e, selectedSurface.id)} title="Verschieben"><i className="fa-solid fa-arrows-up-down-left-right text-sm text-white"></i></div>
+                        </>
+                    )}
+                    {editMode === 'mask' && selectedSurface.maskPoints && (
+                        <>
+                            <svg className="absolute inset-0 w-full h-full overflow-visible pointer-events-none"><polygon points={selectedSurface.maskPoints.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke="#22c55e" strokeWidth="2"/></svg>
+                            {selectedSurface.maskPoints.map((point, idx) => {
+                                const nextIdx = (idx + 1) % selectedSurface.maskPoints.length;
+                                const nextPoint = selectedSurface.maskPoints[nextIdx];
+                                const midX = (point.x + nextPoint.x) / 2; const midY = (point.y + nextPoint.y) / 2;
+                                return (
+                                    <React.Fragment key={`m-${idx}`}>
+                                        <div className="absolute w-6 h-6 bg-green-500 border-2 border-white rounded-sm shadow cursor-move pointer-events-auto flex items-center justify-center z-10" style={{ left: point.x - 12, top: point.y - 12 }} onMouseDown={(e) => handleHandleStart(e, selectedSurface.id, idx, true)} onTouchStart={(e) => handleHandleStart(e, selectedSurface.id, idx, true)} onDoubleClick={(e) => handleHandleDoubleClick(e, selectedSurface.id, idx, true)} />
+                                        <div className="absolute w-5 h-5 bg-green-500/30 border border-green-300 rounded-full cursor-pointer pointer-events-auto flex items-center justify-center z-0" style={{ left: midX - 10, top: midY - 10 }} onMouseDown={(e) => handleGhostStart(e, selectedSurface.id, nextIdx)} onTouchStart={(e) => handleGhostStart(e, selectedSurface.id, nextIdx)}><i className="fa-solid fa-plus text-[10px] text-white"></i></div>
+                                    </React.Fragment>
+                                );
+                            })}
+                        </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

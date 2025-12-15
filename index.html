@@ -37,22 +37,47 @@
           transform-style: preserve-3d;
       }
 
-      /* Animations */
+      /* --- ANIMATIONS --- */
+      
+      /* Neon Line Animations */
       .animate-glow { animation: neon-pulse 2s infinite linear; }
-      .animate-hue { animation: hue-cycle 5s infinite linear; }
-      .animate-dash { animation: dash-cycle 2s infinite linear; }
-      .animate-scanner { background-size: 200% 100% !important; animation: scanner-swipe 2s infinite linear; }
+      .animate-dash { animation: dash-cycle 2s infinite linear; } /* Lauflicht Linien */
       .animate-draw { 
           animation-name: draw-stroke;
           animation-iteration-count: 1;
           animation-fill-mode: forwards;
-          animation-timing-function: linear;
+          animation-timing-function: linear; /* Linear wie gewünscht */
       }
+      
+      /* Image Animations */
+      .animate-hue { animation: hue-cycle 5s infinite linear; }
       .animate-spin-3d { 
           animation: spin-3d 5s infinite linear; 
           transform-style: preserve-3d;
       }
 
+      /* IMAGE CHASE (Lauflicht) - Mimics Dashed Lines using Mask */
+      .animate-image-chase {
+          /* Erzeugt harte Kanten wie bei gestrichelten Linien */
+          mask-image: repeating-linear-gradient(90deg, black 0%, black 25%, transparent 25%, transparent 50%);
+          -webkit-mask-image: repeating-linear-gradient(90deg, black 0%, black 25%, transparent 25%, transparent 50%);
+          mask-size: 200% 100%;
+          -webkit-mask-size: 200% 100%;
+          animation: mask-scroll 2s infinite linear;
+      }
+
+      /* IMAGE DRAW (Aufbau) - Linear Wipe */
+      .animate-image-draw {
+          animation: reveal-wipe 2s forwards linear; /* Linear timing matching lines */
+      }
+
+      /* Color Surface Animations */
+      .animate-scanner { 
+          background-size: 200% 100% !important; 
+          animation: scanner-swipe 2s infinite linear; 
+      }
+
+      /* --- KEYFRAMES --- */
       @keyframes neon-pulse {
         0% { filter: drop-shadow(0 0 2px) hue-rotate(0deg); opacity: 0.8; }
         50% { filter: drop-shadow(0 0 10px) hue-rotate(180deg); opacity: 1; }
@@ -64,6 +89,7 @@
       }
       @keyframes dash-cycle { to { stroke-dashoffset: -1000; } }
       @keyframes draw-stroke { to { stroke-dashoffset: 0; } }
+      
       @keyframes scanner-swipe {
         0% { background-position: 100% 0; }
         100% { background-position: -100% 0; }
@@ -71,6 +97,18 @@
       @keyframes spin-3d {
         0% { transform: rotateY(0deg) rotateX(10deg); }
         100% { transform: rotateY(360deg) rotateX(10deg); }
+      }
+      
+      /* Image Wipe Keyframes */
+      @keyframes reveal-wipe {
+        0% { clip-path: inset(0 100% 0 0); }
+        100% { clip-path: inset(0 0 0 0); }
+      }
+      
+      /* Mask Scroll Keyframes for Image Chase */
+      @keyframes mask-scroll {
+        0% { mask-position: 100% 0; -webkit-mask-position: 100% 0; }
+        100% { mask-position: -100% 0; -webkit-mask-position: -100% 0; }
       }
     </style>
 
@@ -80,7 +118,6 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
 <script type="importmap">
-< type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@^19.2.3",
@@ -98,7 +135,6 @@
         const { useState, useRef, useEffect, useCallback, useMemo } = React;
         
         // --- HELPERS ---
-        // Simple UUID generator to avoid dependencies
         function uuidv4() {
           return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
             var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
@@ -114,7 +150,6 @@
         };
 
         // --- UTILS: MATRIX & MATH ---
-        
         function solve(A, b) {
           const n = A.length;
           for (let i = 0; i < n; i++) {
@@ -195,12 +230,13 @@
             const [ctx, setCtx] = useState(null);
             const [color, setColor] = useState('#00ffff');
             const [lineWidth, setLineWidth] = useState(5);
+            const CANVAS_SIZE = 500; // Fixed size for consistency
 
             useEffect(() => {
                 const canvas = canvasRef.current;
                 if (canvas) {
-                    canvas.width = 500;
-                    canvas.height = 500;
+                    canvas.width = CANVAS_SIZE;
+                    canvas.height = CANVAS_SIZE;
                     const context = canvas.getContext('2d');
                     context.lineCap = 'round';
                     context.lineJoin = 'round';
@@ -283,7 +319,7 @@
                         </div>
 
                         <button onClick={handleSave} className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded text-white font-bold shadow-lg shadow-cyan-900/20">
-                            <i className="fa-solid fa-cube mr-2"></i> In 3D Animieren
+                            <i className="fa-solid fa-cube mr-2"></i> Als Ebene hinzufügen
                         </button>
                     </div>
                 </div>
@@ -412,12 +448,15 @@
           const INTERNAL_HEIGHT = 1000;
           const videoRef = useRef(null);
 
+          // SAFEGUARD: Parse timeline values as numbers, default to 0 if string/empty
+          const safeStart = Number(surface.timelineStart) || 0;
+          const safeDuration = Number(surface.timelineDuration) || 10;
+
           const isActive = useMemo(() => {
               if (!isPlaying) return surface.visible;
-              const start = surface.timelineStart || 0;
-              const end = start + (surface.timelineDuration || 10);
-              return globalTime >= start && globalTime < end;
-          }, [isPlaying, globalTime, surface.visible, surface.timelineStart, surface.timelineDuration]);
+              const end = safeStart + safeDuration;
+              return globalTime >= safeStart && globalTime < end;
+          }, [isPlaying, globalTime, surface.visible, safeStart, safeDuration]);
 
           const transformStyle = useMemo(() => {
             return getPerspectiveTransform(INTERNAL_WIDTH, INTERNAL_HEIGHT, surface.corners);
@@ -440,8 +479,7 @@
 
                 if (isPlaying) {
                      if (isActive) {
-                         const start = surface.timelineStart || 0;
-                         const videoOffset = globalTime - start;
+                         const videoOffset = globalTime - safeStart;
                          
                          if (Number.isFinite(vid.duration) && vid.duration > 0) {
                              const diff = Math.abs(vid.currentTime - (videoOffset % vid.duration));
@@ -465,7 +503,7 @@
                     }
                 }
             }
-          }, [isPlaying, isActive, globalTime, surface.timelineStart, surface.volume, surface.isMuted, surface.type, surface.loopMode]);
+          }, [isPlaying, isActive, globalTime, safeStart, surface.volume, surface.isMuted, surface.type, surface.loopMode]);
 
           const isLineAndMasked = (surface.type === SurfaceType.LINE && surface.maskPoints && surface.maskPoints.length >= 2);
 
@@ -495,6 +533,8 @@
                       animClass = animType === 'chase' ? 'animate-scanner' : 'animate-glow';
                   } else if (surface.type === SurfaceType.IMAGE) {
                       if (animType === 'spin3d') animClass = 'animate-spin-3d';
+                      else if (animType === 'draw') animClass = 'animate-image-draw'; // CORRECT: Linear wipe for images
+                      else if (animType === 'chase') animClass = 'animate-image-chase'; // CORRECT: Dashed mask for images
                       else animClass = 'animate-hue';
                   }
               }
@@ -504,7 +544,11 @@
                   case SurfaceType.VIDEO:
                       return <video ref={videoRef} src={surface.src} className="w-full h-full object-fill block" playsInline webkit-playsinline="true" preload="auto" muted={surface.isMuted} />;
                   case SurfaceType.IMAGE:
-                      return <img src={surface.src} alt={surface.name} className={`w-full h-full object-contain block ${animClass}`} style={animStyle} draggable={false} />;
+                      return (
+                        <div className="w-full h-full relative">
+                            <img src={surface.src} alt={surface.name} className={`w-full h-full object-fill block ${animClass}`} style={animStyle} draggable={false} />
+                        </div>
+                      );
                   case SurfaceType.LINE:
                       const strokeWidth = (surface.lineWidth || 10) * 2; 
                       const inset = strokeWidth / 2;
@@ -606,6 +650,24 @@
         const Sidebar = ({ surfaces, selectedId, editMode, onSetEditMode, onAddSurface, onSelect, onUpdateSurface, onDeleteSurface, onLoadProject, onToggleFullscreen, onCloseMobile, isPlaying, currentTime, onPlay, onStop, onReset, onOpenWindowDrawing, onOpenScreenDrawing }) => {
           const [uploadShape, setUploadShape] = useState('rect');
           const loadFileInputRef = useRef(null);
+          const scrollContainerRef = useRef(null);
+
+          // Auto-scroll to bottom when selectedId changes (implying a new surface might have been added and selected)
+          useEffect(() => {
+              if (selectedId && scrollContainerRef.current) {
+                  // Small timeout to allow DOM to update
+                  setTimeout(() => {
+                      // Only scroll if we are in the layers tab (default)
+                      // We scroll to the bottom of the container where settings are
+                      if(scrollContainerRef.current) {
+                          scrollContainerRef.current.scrollTo({
+                              top: scrollContainerRef.current.scrollHeight,
+                              behavior: 'smooth'
+                          });
+                      }
+                  }, 100);
+              }
+          }, [selectedId]);
 
           const handleFileUpload = (e) => {
             const file = e.target.files?.[0];
@@ -723,7 +785,7 @@
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4 pb-20">
+              <div ref={scrollContainerRef} className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4 pb-20">
                     <div className="flex gap-2 mb-4">
                         <button onClick={handleSaveProject} className="flex-1 py-2 bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-300 flex items-center justify-center gap-2"><i className="fa-solid fa-floppy-disk"></i> Speichern</button>
                         <button onClick={() => loadFileInputRef.current?.click()} className="flex-1 py-2 bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-300 flex items-center justify-center gap-2"><i className="fa-solid fa-folder-open"></i> Laden</button>
@@ -788,8 +850,30 @@
                     <div className="bg-zinc-800/50 rounded p-2 mb-4 border border-zinc-700">
                         <div className="flex items-center mb-1 text-xs text-blue-400 font-bold uppercase"><i className="fa-solid fa-clock mr-2"></i> Timeline</div>
                         <div className="grid grid-cols-2 gap-2">
-                            <div><label className="text-[10px] text-zinc-400">Start (sek)</label><input type="number" min="0" step="0.1" value={Number.isFinite(selectedSurface.timelineStart) ? selectedSurface.timelineStart : ''} onChange={(e) => onUpdateSurface(selectedSurface.id, { timelineStart: parseFloat(e.target.value) })} className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-white"/></div>
-                            <div><label className="text-[10px] text-zinc-400">Dauer (sek)</label><input type="number" min="0.1" step="0.1" value={Number.isFinite(selectedSurface.timelineDuration) ? selectedSurface.timelineDuration : ''} onChange={(e) => onUpdateSurface(selectedSurface.id, { timelineDuration: parseFloat(e.target.value) })} className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-white"/></div>
+                            <div>
+                                <label className="text-[10px] text-zinc-400">Start (sek)</label>
+                                <input 
+                                    type="number" min="0" step="0.1" 
+                                    value={selectedSurface.timelineStart} 
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        onUpdateSurface(selectedSurface.id, { timelineStart: val === '' ? '' : parseFloat(val) });
+                                    }} 
+                                    className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-zinc-400">Dauer (sek)</label>
+                                <input 
+                                    type="number" min="0.1" step="0.1" 
+                                    value={selectedSurface.timelineDuration} 
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        onUpdateSurface(selectedSurface.id, { timelineDuration: val === '' ? '' : parseFloat(val) });
+                                    }} 
+                                    className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-white"
+                                />
+                            </div>
                         </div>
                     </div>
                     
@@ -804,7 +888,16 @@
                             </div>
                             <div className="flex gap-2 text-xs items-center">
                                <label className="cursor-pointer flex items-center"><input type="radio" name="loop" checked={selectedSurface.loopMode === 'custom'} onChange={() => onUpdateSurface(selectedSurface.id, { loopMode: 'custom' })} className="mr-1"/> Benutzerdefiniert:</label>
-                               <input type="number" min="1" max="100" value={selectedSurface.loopCount || 1} onChange={(e) => onUpdateSurface(selectedSurface.id, { loopCount: parseInt(e.target.value), loopMode: 'custom' })} className="w-16 bg-zinc-900 border border-zinc-700 rounded px-1 py-0.5 text-center" disabled={selectedSurface.loopMode !== 'custom'} />
+                               <input 
+                                   type="number" min="1" max="100" 
+                                   value={selectedSurface.loopCount || 1} 
+                                   onChange={(e) => {
+                                        const val = e.target.value;
+                                        onUpdateSurface(selectedSurface.id, { loopCount: val === '' ? '' : parseInt(val), loopMode: 'custom' })
+                                   }} 
+                                   className="w-16 bg-zinc-900 border border-zinc-700 rounded px-1 py-0.5 text-center" 
+                                   disabled={selectedSurface.loopMode !== 'custom'} 
+                                />
                                <span className="text-zinc-500">Mal</span>
                             </div>
                             {selectedSurface.loopMode !== 'infinite' && (
@@ -852,6 +945,8 @@
                                              <div className="flex gap-1 mt-1">
                                                 <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'simple' })} className={`flex-1 text-[9px] py-1 border rounded ${(!selectedSurface.animationType || selectedSurface.animationType==='simple') ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>Farbwechsel</button>
                                                 <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'spin3d' })} className={`flex-1 text-[9px] py-1 border rounded ${selectedSurface.animationType==='spin3d' ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>3D Spin</button>
+                                                <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'chase' })} className={`flex-1 text-[9px] py-1 border rounded ${selectedSurface.animationType==='chase' ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>Lauflicht</button>
+                                                <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'draw' })} className={`flex-1 text-[9px] py-1 border rounded ${selectedSurface.animationType==='draw' ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>Aufbau</button>
                                             </div>
                                         )}
                                      </>
@@ -997,7 +1092,8 @@
           
           const handleSaveWindowDrawing = (dataUrl) => {
               setShowWindowDrawing(false);
-              const newSurface = handleAddSurface(SurfaceType.IMAGE, dataUrl, 'rect', 400, 400);
+              // FIXED: Use 500x500 to match the Canvas resolution 1:1, preventing shrinking.
+              const newSurface = handleAddSurface(SurfaceType.IMAGE, dataUrl, 'rect', 500, 500);
               if (newSurface) {
                   // Enable 3D animation by default for drawings
                   handleUpdateSurface(newSurface.id, { animationSpeed: 4, animationType: 'spin3d', name: 'Zeichnung 3D' });
@@ -1082,6 +1178,9 @@
 
           useEffect(() => {
             const handleKeyDown = (e) => {
+              // Ignore hotkeys if focused element is an input
+              if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+
               if (e.key === 'Escape') setSelectedId(null);
               if (e.key === 'Delete' || e.key === 'Backspace') { if (selectedId && !isPlaying) handleDeleteSurface(selectedId); }
               if (e.key === 'h') setIsUIHidden(prev => !prev);

@@ -41,12 +41,12 @@
       
       /* Neon Line Animations */
       .animate-glow { animation: neon-pulse 2s infinite linear; }
-      .animate-dash { animation: dash-cycle 2s infinite linear; } /* Lauflicht Linien */
+      .animate-dash { animation: dash-cycle 2s infinite linear; }
       .animate-draw { 
           animation-name: draw-stroke;
           animation-iteration-count: 1;
           animation-fill-mode: forwards;
-          animation-timing-function: linear; /* Linear wie gewünscht */
+          animation-timing-function: linear; 
       }
       
       /* Image Animations */
@@ -56,9 +56,26 @@
           transform-style: preserve-3d;
       }
 
-      /* IMAGE CHASE (Lauflicht) - Mimics Dashed Lines using Mask */
+      /* Text Animations */
+      .animate-text-3d {
+          animation: text-3d-complex 6s infinite ease-in-out;
+          transform-style: preserve-3d;
+          display: inline-block;
+      }
+      
+      .animate-text-pulse {
+          animation: text-pulse-glow 2s infinite ease-in-out;
+          display: inline-block;
+      }
+
+      .animate-text-flip {
+          animation: text-flip-3d 4s infinite linear;
+          transform-style: preserve-3d;
+          display: inline-block;
+      }
+
+      /* Image Chase (Lauflicht) */
       .animate-image-chase {
-          /* Erzeugt harte Kanten wie bei gestrichelten Linien */
           mask-image: repeating-linear-gradient(90deg, black 0%, black 25%, transparent 25%, transparent 50%);
           -webkit-mask-image: repeating-linear-gradient(90deg, black 0%, black 25%, transparent 25%, transparent 50%);
           mask-size: 200% 100%;
@@ -66,9 +83,9 @@
           animation: mask-scroll 2s infinite linear;
       }
 
-      /* IMAGE DRAW (Aufbau) - Linear Wipe */
+      /* Image Draw (Aufbau) */
       .animate-image-draw {
-          animation: reveal-wipe 2s forwards linear; /* Linear timing matching lines */
+          animation: reveal-wipe 2s forwards linear; 
       }
 
       /* Color Surface Animations */
@@ -99,13 +116,32 @@
         100% { transform: rotateY(360deg) rotateX(10deg); }
       }
       
-      /* Image Wipe Keyframes */
+      /* Complex 3D Text Keyframes */
+      @keyframes text-3d-complex {
+          0% { transform: translate3d(0, 0, 0) rotate3d(1, 1, 1, 0deg) scale3d(1, 1, 1); }
+          25% { transform: translate3d(20px, -10px, 50px) rotate3d(0, 1, 0.5, 45deg) scale3d(1.1, 1.1, 1.1); }
+          50% { transform: translate3d(0, 20px, 100px) rotate3d(1, 0.2, 0, 180deg) scale3d(0.9, 0.9, 0.9); }
+          75% { transform: translate3d(-20px, -10px, 50px) rotate3d(0, -1, 0.5, 270deg) scale3d(1.2, 1.2, 1.2); }
+          100% { transform: translate3d(0, 0, 0) rotate3d(1, 1, 1, 360deg) scale3d(1, 1, 1); }
+      }
+
+      /* Text Pulse Glow */
+      @keyframes text-pulse-glow {
+          0%, 100% { transform: scale(1); filter: drop-shadow(0 0 5px currentColor); opacity: 0.8; }
+          50% { transform: scale(1.1); filter: drop-shadow(0 0 20px currentColor); opacity: 1; }
+      }
+
+      /* 3D Flip */
+      @keyframes text-flip-3d {
+          0% { transform: rotateY(0deg); }
+          100% { transform: rotateY(360deg); }
+      }
+      
       @keyframes reveal-wipe {
         0% { clip-path: inset(0 100% 0 0); }
         100% { clip-path: inset(0 0 0 0); }
       }
       
-      /* Mask Scroll Keyframes for Image Chase */
       @keyframes mask-scroll {
         0% { mask-position: 100% 0; -webkit-mask-position: 100% 0; }
         100% { mask-position: -100% 0; -webkit-mask-position: -100% 0; }
@@ -122,7 +158,9 @@
   "imports": {
     "react": "https://esm.sh/react@^19.2.3",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/"
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "uuid": "https://esm.sh/uuid@^13.0.0"
   }
 }
 </script>
@@ -147,6 +185,7 @@
           VIDEO: 'VIDEO',
           COLOR: 'COLOR',
           LINE: 'LINE',
+          TEXT: 'TEXT',
         };
 
         // --- UTILS: MATRIX & MATH ---
@@ -223,21 +262,23 @@
 
         // --- COMPONENTS ---
 
-        // DRAWING MODAL (Window)
         const DrawingModal = ({ onClose, onSave }) => {
             const canvasRef = useRef(null);
             const [isDrawing, setIsDrawing] = useState(false);
             const [ctx, setCtx] = useState(null);
             const [color, setColor] = useState('#00ffff');
             const [lineWidth, setLineWidth] = useState(5);
-            const CANVAS_SIZE = 500; // Fixed size for consistency
+            const [isStraight, setIsStraight] = useState(false);
+            const [startPos, setStartPos] = useState(null);
+            const [snapshot, setSnapshot] = useState(null);
+            const CANVAS_SIZE = 500; 
 
             useEffect(() => {
                 const canvas = canvasRef.current;
                 if (canvas) {
                     canvas.width = CANVAS_SIZE;
                     canvas.height = CANVAS_SIZE;
-                    const context = canvas.getContext('2d');
+                    const context = canvas.getContext('2d', { willReadFrequently: true });
                     context.lineCap = 'round';
                     context.lineJoin = 'round';
                     setCtx(context);
@@ -257,7 +298,8 @@
                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
                 return {
                     x: (clientX - rect.left) * (canvasRef.current.width / rect.width),
-                    y: (clientY - rect.top) * (canvasRef.current.height / rect.height)
+                    y: (clientY - rect.top) * (canvasRef.current.height / rect.height),
+                    shiftKey: e.shiftKey
                 };
             };
 
@@ -266,6 +308,8 @@
                 e.preventDefault();
                 setIsDrawing(true);
                 const pos = getPos(e);
+                setStartPos(pos);
+                setSnapshot(ctx.getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE));
                 ctx.beginPath();
                 ctx.moveTo(pos.x, pos.y);
             };
@@ -274,8 +318,17 @@
                 if(!isDrawing || !ctx) return;
                 e.preventDefault();
                 const pos = getPos(e);
-                ctx.lineTo(pos.x, pos.y);
-                ctx.stroke();
+                
+                if (isStraight || pos.shiftKey) {
+                    ctx.putImageData(snapshot, 0, 0);
+                    ctx.beginPath();
+                    ctx.moveTo(startPos.x, startPos.y);
+                    ctx.lineTo(pos.x, pos.y);
+                    ctx.stroke();
+                } else {
+                    ctx.lineTo(pos.x, pos.y);
+                    ctx.stroke();
+                }
             };
 
             const stopDraw = () => {
@@ -295,9 +348,14 @@
             return (
                 <div className="absolute inset-0 bg-black/90 z-[300] flex items-center justify-center p-4">
                     <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-4 shadow-xl flex flex-col max-w-lg w-full">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-bold text-white">Fenster Zeichnen</h3>
-                            <button onClick={onClose} className="text-zinc-400 hover:text-white"><i className="fa-solid fa-xmark"></i></button>
+                        <div className="flex justify-between items-center mb-4 text-white">
+                            <h3 className="text-lg font-bold">Fenster Zeichnen</h3>
+                            <div className="flex gap-2">
+                                <button onClick={() => setIsStraight(!isStraight)} className={`px-3 py-1 rounded text-[10px] uppercase font-bold border transition-colors ${isStraight ? 'bg-blue-600 border-blue-400' : 'bg-zinc-800 border-zinc-700'}`}>
+                                    <i className="fa-solid fa-minus mr-1"></i> Gerade Linie {isStraight ? 'AN' : 'AUS'}
+                                </button>
+                                <button onClick={onClose} className="text-zinc-400 hover:text-white"><i className="fa-solid fa-xmark"></i></button>
+                            </div>
                         </div>
                         
                         <div className="relative w-full aspect-square bg-zinc-950 border border-zinc-800 rounded mb-4 overflow-hidden bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjIyIiBzdHJva2Utd2lkdGg9IjAuNSI+PHBhdGggZD0iTTAgMjBMMjAgME0wIDBMMjAgMjAiLz48L3N2Zz4=')]">
@@ -318,28 +376,30 @@
                             <button onClick={clearCanvas} className="w-10 h-10 rounded bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-700"><i className="fa-solid fa-trash"></i></button>
                         </div>
 
-                        <button onClick={handleSave} className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded text-white font-bold shadow-lg shadow-cyan-900/20">
-                            <i className="fa-solid fa-cube mr-2"></i> Als Ebene hinzufügen
+                        <button onClick={handleSave} className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded text-white font-bold shadow-lg shadow-cyan-900/20 uppercase tracking-widest">
+                             Als Ebene hinzufügen
                         </button>
                     </div>
                 </div>
             );
         };
         
-        // DIRECT SCREEN DRAWING OVERLAY
         const ScreenDrawingOverlay = ({ onClose, onSave }) => {
             const canvasRef = useRef(null);
             const [isDrawing, setIsDrawing] = useState(false);
             const [ctx, setCtx] = useState(null);
             const [color, setColor] = useState('#00ff00');
             const [lineWidth, setLineWidth] = useState(8);
+            const [isStraight, setIsStraight] = useState(false);
+            const [startPos, setStartPos] = useState(null);
+            const [snapshot, setSnapshot] = useState(null);
 
             useEffect(() => {
                 const canvas = canvasRef.current;
                 if (canvas) {
                     canvas.width = window.innerWidth;
                     canvas.height = window.innerHeight;
-                    const context = canvas.getContext('2d');
+                    const context = canvas.getContext('2d', { willReadFrequently: true });
                     context.lineCap = 'round';
                     context.lineJoin = 'round';
                     setCtx(context);
@@ -358,6 +418,8 @@
                 setIsDrawing(true);
                 const x = e.touches ? e.touches[0].clientX : e.clientX;
                 const y = e.touches ? e.touches[0].clientY : e.clientY;
+                setStartPos({x, y});
+                setSnapshot(ctx.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height));
                 ctx.beginPath();
                 ctx.moveTo(x, y);
             };
@@ -367,8 +429,17 @@
                 e.preventDefault();
                 const x = e.touches ? e.touches[0].clientX : e.clientX;
                 const y = e.touches ? e.touches[0].clientY : e.clientY;
-                ctx.lineTo(x, y);
-                ctx.stroke();
+                
+                if (isStraight || e.shiftKey) {
+                    ctx.putImageData(snapshot, 0, 0);
+                    ctx.beginPath();
+                    ctx.moveTo(startPos.x, startPos.y);
+                    ctx.lineTo(x, y);
+                    ctx.stroke();
+                } else {
+                    ctx.lineTo(x, y);
+                    ctx.stroke();
+                }
             };
 
             const stopDraw = () => {
@@ -378,14 +449,11 @@
             
             const handleSave = () => {
                 if (!canvasRef.current) return;
-                
-                // Bounding Box Logic
                 const w = canvasRef.current.width;
                 const h = canvasRef.current.height;
                 const ctx2d = canvasRef.current.getContext('2d');
                 const imgData = ctx2d.getImageData(0, 0, w, h);
                 const { data } = imgData;
-                
                 let minX = w, minY = h, maxX = 0, maxY = 0, found = false;
 
                 for (let i = 0; i < data.length; i += 4) {
@@ -394,32 +462,19 @@
                         const idx = i / 4;
                         const x = idx % w;
                         const y = Math.floor(idx / w);
-                        if (x < minX) minX = x;
-                        if (x > maxX) maxX = x;
-                        if (y < minY) minY = y;
-                        if (y > maxY) maxY = y;
+                        if (x < minX) minX = x; if (x > maxX) maxX = x;
+                        if (y < minY) minY = y; if (y > maxY) maxY = y;
                         found = true;
                     }
                 }
 
-                if (!found) {
-                    onClose();
-                    return;
-                }
-
-                const cropWidth = maxX - minX + 10; 
-                const cropHeight = maxY - minY + 10;
-                
+                if (!found) { onClose(); return; }
+                const cropWidth = maxX - minX + 10; const cropHeight = maxY - minY + 10;
                 const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = cropWidth;
-                tempCanvas.height = cropHeight;
+                tempCanvas.width = cropWidth; tempCanvas.height = cropHeight;
                 const tCtx = tempCanvas.getContext('2d');
-                
-                const srcX = Math.max(0, minX - 5);
-                const srcY = Math.max(0, minY - 5);
-                
+                const srcX = Math.max(0, minX - 5); const srcY = Math.max(0, minY - 5);
                 tCtx.drawImage(canvasRef.current, srcX, srcY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
-                
                 const dataUrl = tempCanvas.toDataURL('image/png');
                 onSave(dataUrl, { x: srcX, y: srcY, w: cropWidth, h: cropHeight });
             };
@@ -433,11 +488,15 @@
                         onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
                         onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={stopDraw}
                      />
-                     <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex gap-4 bg-zinc-900/90 p-2 rounded-full border border-zinc-700 shadow-xl">
-                        <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-8 h-8 rounded-full border-none"/>
-                        <input type="range" min="1" max="30" value={lineWidth} onChange={(e) => setLineWidth(parseInt(e.target.value))} className="w-32"/>
-                        <button onClick={handleSave} className="px-4 py-1 bg-green-600 rounded-full text-white text-xs font-bold">Fertig</button>
-                        <button onClick={onClose} className="px-4 py-1 bg-red-600 rounded-full text-white text-xs font-bold">Abbruch</button>
+                     <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex items-center gap-4 bg-zinc-900/95 p-2 px-4 rounded-full border border-zinc-700 shadow-2xl">
+                        <button onClick={() => setIsStraight(!isStraight)} className={`px-4 py-1.5 rounded-full text-[10px] font-bold border transition-colors ${isStraight ? 'bg-blue-600 border-blue-400 text-white' : 'bg-zinc-800 border-zinc-700 text-zinc-400'}`}>
+                            <i className="fa-solid fa-minus mr-1"></i> Linien-Modus {isStraight ? 'AN' : 'AUS'}
+                        </button>
+                        <div className="w-[1px] h-6 bg-zinc-800 mx-1"></div>
+                        <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-8 h-8 rounded-full border-none cursor-pointer bg-transparent"/>
+                        <input type="range" min="1" max="30" value={lineWidth} onChange={(e) => setLineWidth(parseInt(e.target.value))} className="w-32 accent-blue-500"/>
+                        <button onClick={handleSave} className="px-4 py-1.5 bg-green-600 hover:bg-green-500 rounded-full text-white text-[10px] font-bold uppercase transition-all shadow-lg shadow-green-900/20">Fertig</button>
+                        <button onClick={onClose} className="px-4 py-1.5 bg-red-600 hover:bg-red-500 rounded-full text-white text-[10px] font-bold uppercase transition-all">Abbruch</button>
                      </div>
                 </div>
             );
@@ -448,7 +507,6 @@
           const INTERNAL_HEIGHT = 1000;
           const videoRef = useRef(null);
 
-          // SAFEGUARD: Parse timeline values as numbers, default to 0 if string/empty
           const safeStart = Number(surface.timelineStart) || 0;
           const safeDuration = Number(surface.timelineDuration) || 10;
 
@@ -473,34 +531,24 @@
                 const vid = videoRef.current;
                 vid.volume = surface.volume ?? 1.0;
                 vid.muted = surface.isMuted ?? false;
-                
                 const shouldLoop = surface.loopMode !== 'once';
                 if(vid.loop !== shouldLoop) vid.loop = shouldLoop;
 
                 if (isPlaying) {
                      if (isActive) {
                          const videoOffset = globalTime - safeStart;
-                         
                          if (Number.isFinite(vid.duration) && vid.duration > 0) {
                              const diff = Math.abs(vid.currentTime - (videoOffset % vid.duration));
-                             if (diff > 0.5 && !vid.seeking) {
-                                 vid.currentTime = videoOffset % vid.duration; 
-                             }
+                             if (diff > 0.5 && !vid.seeking) vid.currentTime = videoOffset % vid.duration; 
                          }
-                         
-                         if (vid.paused) {
-                            vid.play().catch(e => {});
-                         }
+                         if (vid.paused) vid.play().catch(e => {});
                      } else {
                          if (!vid.paused) vid.pause();
                          vid.currentTime = 0;
                      }
                 } else {
-                    if (isActive) {
-                        if (vid.paused) vid.play().catch(() => {});
-                    } else {
-                        vid.pause();
-                    }
+                    if (isActive) { if (vid.paused) vid.play().catch(() => {}); }
+                    else vid.pause();
                 }
             }
           }, [isPlaying, isActive, globalTime, safeStart, surface.volume, surface.isMuted, surface.type, surface.loopMode]);
@@ -518,9 +566,7 @@
           }, [surface.shape, surface.type, surface.maskPoints]);
 
           const renderContent = () => {
-              // Standard rendering for non-masked-lines
               if (surface.type === SurfaceType.LINE && surface.maskPoints && surface.maskPoints.length > 0) return null;
-
               const isAnimated = surface.animationSpeed && surface.animationSpeed > 0;
               const animType = surface.animationType || 'simple';
               let animClass = '';
@@ -533,13 +579,16 @@
                       animClass = animType === 'chase' ? 'animate-scanner' : 'animate-glow';
                   } else if (surface.type === SurfaceType.IMAGE) {
                       if (animType === 'spin3d') animClass = 'animate-spin-3d';
-                      else if (animType === 'draw') animClass = 'animate-image-draw'; // CORRECT: Linear wipe for images
-                      else if (animType === 'chase') animClass = 'animate-image-chase'; // CORRECT: Dashed mask for images
+                      else if (animType === 'draw') animClass = 'animate-image-draw'; 
+                      else if (animType === 'chase') animClass = 'animate-image-chase'; 
                       else animClass = 'animate-hue';
+                  } else if (surface.type === SurfaceType.TEXT) {
+                      if (animType === 'pulse') animClass = 'animate-text-pulse';
+                      else if (animType === 'flip') animClass = 'animate-text-flip';
+                      else animClass = 'animate-text-3d';
                   }
               }
               const animStyle = isAnimated ? { animationDuration: `${surface.animationSpeed}s` } : {};
-
               switch(surface.type) {
                   case SurfaceType.VIDEO:
                       return <video ref={videoRef} src={surface.src} className="w-full h-full object-fill block" playsInline webkit-playsinline="true" preload="auto" muted={surface.isMuted} />;
@@ -549,11 +598,27 @@
                             <img src={surface.src} alt={surface.name} className={`w-full h-full object-fill block ${animClass}`} style={animStyle} draggable={false} />
                         </div>
                       );
+                  case SurfaceType.TEXT:
+                      return (
+                          <div className="w-full h-full flex items-center justify-center pointer-events-none" style={{ perspective: '1000px' }}>
+                              <div 
+                                className={`${animClass} leading-tight text-center`} 
+                                style={{ 
+                                    color: surface.src, 
+                                    fontSize: `${surface.fontSize || 100}px`,
+                                    fontWeight: 'bold',
+                                    writingMode: surface.isVertical ? 'vertical-rl' : 'horizontal-tb',
+                                    textOrientation: 'upright',
+                                    ...animStyle
+                                }}
+                              >
+                                {surface.textContent || 'TEXT'}
+                              </div>
+                          </div>
+                      );
                   case SurfaceType.LINE:
-                      const strokeWidth = (surface.lineWidth || 10) * 2; 
-                      const inset = strokeWidth / 2;
-                      const w = INTERNAL_WIDTH - strokeWidth;
-                      const h = INTERNAL_HEIGHT - strokeWidth;
+                      const strokeWidth = (surface.lineWidth || 10) * 2; const inset = strokeWidth / 2;
+                      const w = INTERNAL_WIDTH - strokeWidth; const h = INTERNAL_HEIGHT - strokeWidth;
                       let dashArray = (isAnimated && animType === 'chase') ? `${w/4} ${w/4}` : undefined;
                       let svgTransform = undefined;
                       if (isAnimated && animType === 'draw') {
@@ -561,10 +626,8 @@
                           if (surface.shape === 'rect') perimeter = 2 * (w + h);
                           if (surface.shape === 'circle') perimeter = Math.PI * w; 
                           if (surface.shape === 'triangle') perimeter = w + 2 * Math.sqrt(Math.pow(w/2, 2) + Math.pow(h, 2)); 
-                          
                           dashArray = `${perimeter}`;
-                          animStyle.strokeDasharray = perimeter;
-                          animStyle.strokeDashoffset = perimeter;
+                          animStyle.strokeDasharray = perimeter; animStyle.strokeDashoffset = perimeter;
                           if (surface.shape === 'rect') { svgTransform = 'rotate(-90deg)'; animStyle.transformOrigin = 'center'; }
                           if (surface.shape === 'circle') { svgTransform = 'rotate(90deg)'; animStyle.transformOrigin = 'center'; }
                       }
@@ -582,52 +645,28 @@
                           colorStyle.backgroundImage = `linear-gradient(110deg, ${surface.src} 20%, #ffffff 50%, ${surface.src} 80%)`;
                       }
                       return <div className={`w-full h-full ${animClass}`} style={colorStyle} />;
-                  default:
-                      return <div className="w-full h-full" style={{ backgroundColor: surface.src }} />;
+                  default: return <div className="w-full h-full" style={{ backgroundColor: surface.src }} />;
               }
           }
 
           if (!isActive) return null;
           const rotation = surface.rotation || 0;
-
-          // SPECIAL HANDLING FOR MASKED NEON LINES
           const isAnimated = surface.animationSpeed && surface.animationSpeed > 0;
           const animType = surface.animationType || 'simple';
-          let maskAnimClass = '';
-          const maskAnimStyle = isAnimated ? { animationDuration: `${surface.animationSpeed}s` } : {};
+          let maskAnimClass = ''; const maskAnimStyle = isAnimated ? { animationDuration: `${surface.animationSpeed}s` } : {};
           
           if (isLineAndMasked && isAnimated) {
              const perimeter = getPolygonPerimeter(surface.maskPoints);
-             if (animType === 'chase') {
-                 maskAnimClass = 'animate-dash';
-                 maskAnimStyle.strokeDasharray = `${perimeter/20} ${perimeter/20}`; 
-             }
-             else if (animType === 'draw') {
-                 maskAnimClass = 'animate-draw';
-                 maskAnimStyle.strokeDasharray = `${perimeter}`; 
-                 maskAnimStyle.strokeDashoffset = `${perimeter}`; 
-             }
-             else {
-                 maskAnimClass = 'animate-glow';
-             }
-          } else if (isLineAndMasked) {
-             // Static line
-             maskAnimClass = '';
+             if (animType === 'chase') { maskAnimClass = 'animate-dash'; maskAnimStyle.strokeDasharray = `${perimeter/20} ${perimeter/20}`; }
+             else if (animType === 'draw') { maskAnimClass = 'animate-draw'; maskAnimStyle.strokeDasharray = `${perimeter}`; maskAnimStyle.strokeDashoffset = `${perimeter}`; }
+             else { maskAnimClass = 'animate-glow'; }
           }
 
           return (
-            <div className="absolute top-0 left-0 w-full h-full pointer-events-none select-none" 
-                 style={{ zIndex: surface.zIndex, clipPath: isLineAndMasked ? 'none' : maskClipPath }}>
+            <div className="absolute top-0 left-0 w-full h-full pointer-events-none select-none" style={{ zIndex: surface.zIndex, clipPath: isLineAndMasked ? 'none' : maskClipPath }}>
               {isLineAndMasked && (
                  <svg className="absolute inset-0 w-full h-full overflow-visible">
-                     <polygon 
-                        points={surface.maskPoints.map(p => `${p.x},${p.y}`).join(' ')} 
-                        fill="none" 
-                        stroke={surface.src} 
-                        strokeWidth={surface.lineWidth || 10} 
-                        className={maskAnimClass} 
-                        style={maskAnimStyle} 
-                     />
+                     <polygon points={surface.maskPoints.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={surface.src} strokeWidth={surface.lineWidth || 10} className={maskAnimClass} style={maskAnimStyle} />
                  </svg>
               )}
               <div className="origin-top-left absolute pointer-events-auto transition-opacity gpu-accelerated"
@@ -652,48 +691,33 @@
           const loadFileInputRef = useRef(null);
           const scrollContainerRef = useRef(null);
 
-          // Auto-scroll to bottom when selectedId changes (implying a new surface might have been added and selected)
           useEffect(() => {
               if (selectedId && scrollContainerRef.current) {
-                  // Small timeout to allow DOM to update
                   setTimeout(() => {
-                      // Only scroll if we are in the layers tab (default)
-                      // We scroll to the bottom of the container where settings are
                       if(scrollContainerRef.current) {
-                          scrollContainerRef.current.scrollTo({
-                              top: scrollContainerRef.current.scrollHeight,
-                              behavior: 'smooth'
-                          });
+                          scrollContainerRef.current.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: 'smooth' });
                       }
                   }, 100);
               }
           }, [selectedId]);
 
           const handleFileUpload = (e) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            e.target.value = '';
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const result = event.target?.result;
-                if (!result) return;
+            const file = e.target.files?.[0]; if (!file) return; e.target.value = '';
+            const reader = new FileReader(); reader.onload = (event) => {
+                const result = event.target?.result; if (!result) return;
                 if (file.type.startsWith('video/')) {
-                    const video = document.createElement('video');
-                    video.preload = 'metadata';
+                    const video = document.createElement('video'); video.preload = 'metadata';
                     video.onloadedmetadata = () => {
                         const w = video.videoWidth; const h = video.videoHeight;
-                        const duration = video.duration || 10;
-                        const scale = 400 / Math.max(w, h);
+                        const duration = video.duration || 10; const scale = 400 / Math.max(w, h);
                         let finalW = w * scale; let finalH = h * scale;
                         if (uploadShape === 'circle') { const size = Math.max(finalW, finalH); finalW = size; finalH = size; }
                         onAddSurface(SurfaceType.VIDEO, result, uploadShape, finalW, finalH, duration);
                     };
                     video.src = result;
                 } else if (file.type.startsWith('image/')) {
-                    const img = new Image();
-                    img.onload = () => {
-                        const w = img.width; const h = img.height;
-                        const scale = 400 / Math.max(w, h);
+                    const img = new Image(); img.onload = () => {
+                        const w = img.width; const h = img.height; const scale = 400 / Math.max(w, h);
                         let finalW = w * scale; let finalH = h * scale;
                         if (uploadShape === 'circle') { const size = Math.max(finalW, finalH); finalW = size; finalH = size; }
                         onAddSurface(SurfaceType.IMAGE, result, uploadShape, finalW, finalH);
@@ -706,30 +730,20 @@
 
           const handleSaveProject = () => {
               const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(surfaces));
-              const downloadAnchorNode = document.createElement('a');
-              downloadAnchorNode.setAttribute("href", dataStr);
+              const downloadAnchorNode = document.createElement('a'); downloadAnchorNode.setAttribute("href", dataStr);
               downloadAnchorNode.setAttribute("download", `lumimap_projekt_${new Date().toISOString().slice(0,10)}.json`);
-              document.body.appendChild(downloadAnchorNode);
-              downloadAnchorNode.click();
-              downloadAnchorNode.remove();
+              document.body.appendChild(downloadAnchorNode); downloadAnchorNode.click(); downloadAnchorNode.remove();
           };
 
           const handleLoadFileChange = (e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-              const reader = new FileReader();
-              reader.onload = (ev) => {
-                  try {
-                      const loaded = JSON.parse(ev.target?.result);
-                      onLoadProject(loaded);
-                  } catch (err) { alert("Fehler beim Laden."); }
+              const file = e.target.files?.[0]; if (!file) return;
+              const reader = new FileReader(); reader.onload = (ev) => {
+                  try { const loaded = JSON.parse(ev.target?.result); onLoadProject(loaded); } catch (err) { alert("Fehler beim Laden."); }
               };
-              reader.readAsText(file);
-              e.target.value = '';
+              reader.readAsText(file); e.target.value = '';
           };
 
           const selectedSurface = surfaces.find(s => s.id === selectedId);
-          
           const toggleMaskMode = (enabled) => {
               if (!selectedSurface) return;
               if (enabled) {
@@ -738,12 +752,9 @@
                       let newPoints = [...selectedSurface.corners];
                       if (selectedSurface.shape === 'triangle') {
                           const [p0, p1, p2, p3] = selectedSurface.corners;
-                          const top = { x: (p0.x + p1.x)/2, y: (p0.y + p1.y)/2 };
-                          newPoints = [top, p2, p3]; 
+                          const top = { x: (p0.x + p1.x)/2, y: (p0.y + p1.y)/2 }; newPoints = [top, p2, p3]; 
                       } else if (selectedSurface.shape === 'circle') {
-                          newPoints = [];
-                          const steps = 16;
-                          const [p0, p1, p2, p3] = selectedSurface.corners;
+                          newPoints = []; const steps = 16; const [p0, p1, p2, p3] = selectedSurface.corners;
                           for(let i=0; i<steps; i++) {
                               const th = (i/steps)*Math.PI*2 - Math.PI/2;
                               const u = 0.5 + 0.5 * Math.cos(th); const v = 0.5 + 0.5 * Math.sin(th);
@@ -754,26 +765,12 @@
                       }
                       onUpdateSurface(selectedSurface.id, { maskPoints: newPoints });
                   }
-              } else { 
-                  // FIX: Do NOT clear maskPoints when switching to Perspective.
-                  onSetEditMode('perspective'); 
-              }
+              } else onSetEditMode('perspective'); 
           };
           const resetMask = () => { if (!selectedSurface) return; onUpdateSurface(selectedSurface.id, { maskPoints: [...selectedSurface.corners] }); };
           const clearMask = () => { if (!selectedSurface) return; onUpdateSurface(selectedSurface.id, { maskPoints: undefined }); onSetEditMode('perspective'); };
-          const formatTime = (t) => {
-              const m = Math.floor(t / 60); const s = Math.floor(t % 60); const ms = Math.floor((t % 1) * 10);
-              return `${m}:${s.toString().padStart(2, '0')}.${ms}`;
-          };
+          const formatTime = (t) => { const m = Math.floor(t / 60); const s = Math.floor(t % 60); const ms = Math.floor((t % 1) * 10); return `${m}:${s.toString().padStart(2, '0')}.${ms}`; };
           
-          const handleSetVideoDuration = () => {
-              if (!selectedSurface || selectedSurface.type !== SurfaceType.VIDEO) return;
-              const baseDur = selectedSurface.videoDuration || 10;
-              const loops = (selectedSurface.loopMode === 'custom' ? (selectedSurface.loopCount || 1) : 1);
-              const newDur = baseDur * loops;
-              onUpdateSurface(selectedSurface.id, { timelineDuration: parseFloat(newDur.toFixed(2)) });
-          };
-
           return (
             <div className="w-full md:w-80 h-full bg-zinc-900 border-r border-zinc-800 flex flex-col shadow-2xl z-50 overflow-hidden relative">
               <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-950">
@@ -787,21 +784,19 @@
 
               <div ref={scrollContainerRef} className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4 pb-20">
                     <div className="flex gap-2 mb-4">
-                        <button onClick={handleSaveProject} className="flex-1 py-2 bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-300 flex items-center justify-center gap-2"><i className="fa-solid fa-floppy-disk"></i> Speichern</button>
-                        <button onClick={() => loadFileInputRef.current?.click()} className="flex-1 py-2 bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-300 flex items-center justify-center gap-2"><i className="fa-solid fa-folder-open"></i> Laden</button>
+                        <button onClick={handleSaveProject} className="flex-1 py-2 bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-300 flex items-center justify-center gap-2 transition hover:bg-zinc-700"><i className="fa-solid fa-floppy-disk"></i> Speichern</button>
+                        <button onClick={() => loadFileInputRef.current?.click()} className="flex-1 py-2 bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-300 flex items-center justify-center gap-2 transition hover:bg-zinc-700"><i className="fa-solid fa-folder-open"></i> Laden</button>
                         <input type="file" ref={loadFileInputRef} onChange={handleLoadFileChange} accept=".json" className="hidden" />
                     </div>
                     <hr className="border-zinc-800 mb-4" />
-                    
-                    {/* DRAWING BUTTONS */}
                     <div className="flex gap-2 mb-4">
-                        <button onClick={onOpenWindowDrawing} className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-blue-600 rounded text-white font-bold flex items-center justify-center shadow-lg hover:brightness-110 transition-all text-xs">
-                            <i className="fa-solid fa-pencil mr-1"></i> Fenster Zeichnen
-                        </button>
-                         <button onClick={onOpenScreenDrawing} className="flex-1 py-3 bg-gradient-to-r from-green-600 to-teal-600 rounded text-white font-bold flex items-center justify-center shadow-lg hover:brightness-110 transition-all text-xs">
-                            <i className="fa-solid fa-pen-nib mr-1"></i> Direkt Zeichnen
-                        </button>
+                        <button onClick={onOpenWindowDrawing} className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-blue-600 rounded text-white font-bold flex items-center justify-center shadow-lg hover:brightness-110 transition-all text-xs"><i className="fa-solid fa-pencil mr-1"></i> Fenster Zeichnen</button>
+                         <button onClick={onOpenScreenDrawing} className="flex-1 py-3 bg-gradient-to-r from-green-600 to-teal-600 rounded text-white font-bold flex items-center justify-center shadow-lg hover:brightness-110 transition-all text-xs"><i className="fa-solid fa-pen-nib mr-1"></i> Direkt Zeichnen</button>
                     </div>
+
+                    <button onClick={() => onAddSurface(SurfaceType.TEXT, '#ffffff', 'rect', 400, 200)} className="w-full py-2 bg-zinc-800 border border-zinc-700 rounded text-xs text-blue-400 font-bold flex items-center justify-center gap-2 mb-4 hover:bg-zinc-700 transition">
+                        <i className="fa-solid fa-font"></i> Text hinzufügen
+                    </button>
 
                     <div className="space-y-2">
                         <label className="text-xs font-semibold text-zinc-500 uppercase">Medien Upload</label>
@@ -810,33 +805,30 @@
                                 <button key={shape} onClick={() => setUploadShape(shape)} className={`flex-1 py-1 rounded text-xs flex justify-center items-center ${uploadShape === shape ? 'bg-zinc-600 text-white shadow-sm' : 'text-zinc-400'}`}><i className={`fa-regular ${shape === 'rect' ? 'fa-square' : shape === 'circle' ? 'fa-circle' : 'fa-play fa-rotate-270'}`}></i></button>
                             ))}
                         </div>
-                        <label className="flex items-center justify-center p-3 border border-zinc-700 rounded bg-zinc-800 hover:bg-zinc-700 cursor-pointer"><i className="fa-solid fa-upload mr-2 text-zinc-400"></i><span className="text-xs text-zinc-300 uppercase font-bold">Datei wählen</span><input type="file" className="hidden" accept="image/*,video/*" onChange={handleFileUpload} /></label>
+                        <label className="flex items-center justify-center p-3 border border-zinc-700 rounded bg-zinc-800 hover:bg-zinc-700 cursor-pointer transition"><i className="fa-solid fa-upload mr-2 text-zinc-400"></i><span className="text-xs text-zinc-300 uppercase font-bold">Datei wählen</span><input type="file" className="hidden" accept="image/*,video/*" onChange={handleFileUpload} /></label>
                     </div>
-                    
                     <div className="space-y-2">
                         <label className="text-xs font-semibold text-zinc-500 uppercase">Neon Linien</label>
                         <div className="grid grid-cols-3 gap-2">
-                            <button onClick={() => onAddSurface(SurfaceType.LINE, '#00ffff', 'rect')} className="p-2 border border-zinc-700 rounded bg-zinc-800 flex flex-col items-center"><i className="fa-regular fa-square text-cyan-400 mb-1"></i><span className="text-[10px]">Rechteck</span></button>
-                            <button onClick={() => onAddSurface(SurfaceType.LINE, '#00ffff', 'circle')} className="p-2 border border-zinc-700 rounded bg-zinc-800 flex flex-col items-center"><i className="fa-regular fa-circle text-cyan-400 mb-1"></i><span className="text-[10px]">Kreis</span></button>
-                            <button onClick={() => onAddSurface(SurfaceType.LINE, '#00ffff', 'triangle')} className="p-2 border border-zinc-700 rounded bg-zinc-800 flex flex-col items-center"><i className="fa-solid fa-play -rotate-90 text-xs text-cyan-400 mb-1"></i><span className="text-[10px]">Dreieck</span></button>
+                            <button onClick={() => onAddSurface(SurfaceType.LINE, '#00ffff', 'rect')} className="p-2 border border-zinc-700 rounded bg-zinc-800 flex flex-col items-center hover:bg-zinc-700 transition"><i className="fa-regular fa-square text-cyan-400 mb-1"></i><span className="text-[10px]">Rechteck</span></button>
+                            <button onClick={() => onAddSurface(SurfaceType.LINE, '#00ffff', 'circle')} className="p-2 border border-zinc-700 rounded bg-zinc-800 flex flex-col items-center hover:bg-zinc-700 transition"><i className="fa-regular fa-circle text-cyan-400 mb-1"></i><span className="text-[10px]">Kreis</span></button>
+                            <button onClick={() => onAddSurface(SurfaceType.LINE, '#00ffff', 'triangle')} className="p-2 border border-zinc-700 rounded bg-zinc-800 flex flex-col items-center hover:bg-zinc-700 transition"><i className="fa-solid fa-play -rotate-90 text-xs text-cyan-400 mb-1"></i><span className="text-[10px]">Dreieck</span></button>
                         </div>
                     </div>
-
                     <div className="space-y-2">
                          <label className="text-xs font-semibold text-zinc-500 uppercase">Farben</label>
                          <div className="grid grid-cols-3 gap-2">
-                            <button onClick={() => onAddSurface(SurfaceType.COLOR, '#ffffff', 'rect')} className="p-2 border border-zinc-700 rounded bg-zinc-800 flex flex-col items-center"><i className="fa-regular fa-square text-zinc-400 mb-1"></i><span className="text-[10px]">Rechteck</span></button>
-                            <button onClick={() => onAddSurface(SurfaceType.COLOR, '#ffffff', 'circle')} className="p-2 border border-zinc-700 rounded bg-zinc-800 flex flex-col items-center"><i className="fa-regular fa-circle text-zinc-400 mb-1"></i><span className="text-[10px]">Kreis</span></button>
-                            <button onClick={() => onAddSurface(SurfaceType.COLOR, '#ffffff', 'triangle')} className="p-2 border border-zinc-700 rounded bg-zinc-800 flex flex-col items-center"><i className="fa-solid fa-play -rotate-90 text-xs text-zinc-400 mb-1"></i><span className="text-[10px]">Dreieck</span></button>
+                            <button onClick={() => onAddSurface(SurfaceType.COLOR, '#ffffff', 'rect')} className="p-2 border border-zinc-700 rounded bg-zinc-800 flex flex-col items-center hover:bg-zinc-700 transition"><i className="fa-regular fa-square text-zinc-400 mb-1"></i><span className="text-[10px]">Rechteck</span></button>
+                            <button onClick={() => onAddSurface(SurfaceType.COLOR, '#ffffff', 'circle')} className="p-2 border border-zinc-700 rounded bg-zinc-800 flex flex-col items-center hover:bg-zinc-700 transition"><i className="fa-regular fa-circle text-zinc-400 mb-1"></i><span className="text-[10px]">Kreis</span></button>
+                            <button onClick={() => onAddSurface(SurfaceType.COLOR, '#ffffff', 'triangle')} className="p-2 border border-zinc-700 rounded bg-zinc-800 flex flex-col items-center hover:bg-zinc-700 transition"><i className="fa-solid fa-play -rotate-90 text-xs text-zinc-400 mb-1"></i><span className="text-[10px]">Dreieck</span></button>
                         </div>
                     </div>
-
                     <div className="space-y-2 mt-4 pt-4 border-t border-zinc-800">
                       <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Ebenen Liste</h3>
                       {surfaces.map(s => (
                         <div key={s.id} className={`flex items-center p-2 rounded border cursor-pointer group ${selectedId === s.id ? 'bg-blue-900/30 border-blue-500/50' : 'bg-zinc-800 border-zinc-700'}`} onClick={() => onSelect(s.id)}>
                           <div className="w-8 h-8 rounded bg-zinc-900 mr-3 border border-zinc-700 flex items-center justify-center text-xs text-zinc-500 overflow-hidden">
-                              {s.type === 'VIDEO' ? <i className="fa-solid fa-video"></i> : s.type === 'IMAGE' ? <img src={s.src} className="w-full h-full object-cover"/> : <div className="w-3 h-3 rounded-full" style={{background: s.src}}></div>}
+                              {s.type === 'VIDEO' ? <i className="fa-solid fa-video"></i> : s.type === 'IMAGE' ? <img src={s.src} className="w-full h-full object-cover"/> : s.type === 'TEXT' ? <i className="fa-solid fa-font"></i> : <div className="w-3 h-3 rounded-full" style={{background: s.src}}></div>}
                           </div>
                           <div className="flex-1 min-w-0"><div className="text-sm font-medium text-zinc-200 truncate">{s.name}</div><div className="text-[10px] text-zinc-500 uppercase">{s.type} {s.maskPoints ? '(Maske)' : ''}</div></div>
                           <button onClick={(e) => { e.stopPropagation(); onUpdateSurface(s.id, { visible: !s.visible }); }} className={`p-1.5 rounded hover:bg-zinc-700 ${s.visible ? 'text-zinc-400' : 'text-zinc-600'}`}><i className={`fa-solid ${s.visible ? 'fa-eye' : 'fa-eye-slash'}`}></i></button>
@@ -850,59 +842,50 @@
                     <div className="bg-zinc-800/50 rounded p-2 mb-4 border border-zinc-700">
                         <div className="flex items-center mb-1 text-xs text-blue-400 font-bold uppercase"><i className="fa-solid fa-clock mr-2"></i> Timeline</div>
                         <div className="grid grid-cols-2 gap-2">
-                            <div>
-                                <label className="text-[10px] text-zinc-400">Start (sek)</label>
-                                <input 
-                                    type="number" min="0" step="0.1" 
-                                    value={selectedSurface.timelineStart} 
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        onUpdateSurface(selectedSurface.id, { timelineStart: val === '' ? '' : parseFloat(val) });
-                                    }} 
-                                    className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-white"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[10px] text-zinc-400">Dauer (sek)</label>
-                                <input 
-                                    type="number" min="0.1" step="0.1" 
-                                    value={selectedSurface.timelineDuration} 
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        onUpdateSurface(selectedSurface.id, { timelineDuration: val === '' ? '' : parseFloat(val) });
-                                    }} 
-                                    className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-white"
-                                />
-                            </div>
+                            <div><label className="text-[10px] text-zinc-400">Start (sek)</label><input type="number" min="0" step="0.1" value={selectedSurface.timelineStart} onChange={(e) => onUpdateSurface(selectedSurface.id, { timelineStart: e.target.value === '' ? '' : parseFloat(e.target.value) })} className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-white"/></div>
+                            <div><label className="text-[10px] text-zinc-400">Dauer (sek)</label><input type="number" min="0.1" step="0.1" value={selectedSurface.timelineDuration} onChange={(e) => onUpdateSurface(selectedSurface.id, { timelineDuration: e.target.value === '' ? '' : parseFloat(e.target.value) })} className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-white"/></div>
                         </div>
                     </div>
                     
-                    {/* VIDEO LOOP CONTROLS */}
+                    {selectedSurface.type === SurfaceType.TEXT && (
+                      <div className="bg-zinc-800/50 rounded p-2 mb-4 border border-zinc-700 space-y-3">
+                         <div className="flex items-center mb-1 text-xs text-blue-400 font-bold uppercase"><i className="fa-solid fa-keyboard mr-2"></i> Text-Optionen</div>
+                         <textarea 
+                            value={selectedSurface.textContent || ''} 
+                            onChange={(e) => onUpdateSurface(selectedSurface.id, { textContent: e.target.value })}
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-xs text-white h-16 outline-none focus:border-blue-500"
+                            placeholder="Dein Text hier..."
+                         />
+                         
+                         <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-zinc-400 uppercase font-bold">Ausrichtung</span>
+                            <div className="flex gap-1 bg-zinc-900 p-1 rounded border border-zinc-700">
+                                <button onClick={() => onUpdateSurface(selectedSurface.id, { isVertical: false })} className={`px-2 py-1 text-[10px] rounded ${!selectedSurface.isVertical ? 'bg-blue-600 text-white' : 'text-zinc-500'}`}>Horizontal</button>
+                                <button onClick={() => onUpdateSurface(selectedSurface.id, { isVertical: true })} className={`px-2 py-1 text-[10px] rounded ${selectedSurface.isVertical ? 'bg-blue-600 text-white' : 'text-zinc-500'}`}>Vertikal</button>
+                            </div>
+                         </div>
+
+                         <div className="space-y-1">
+                            <div className="flex justify-between text-[10px] text-zinc-400"><label>Schriftgröße</label><span>{selectedSurface.fontSize || 100}px</span></div>
+                            <input type="range" min="10" max="300" step="5" value={selectedSurface.fontSize || 100} onChange={(e) => onUpdateSurface(selectedSurface.id, { fontSize: parseInt(e.target.value) })} className="w-full accent-blue-500 h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer"/>
+                         </div>
+                      </div>
+                    )}
+
                     {selectedSurface.type === SurfaceType.VIDEO && (
                       <div className="bg-zinc-800/50 rounded p-2 mb-4 border border-zinc-700">
-                         <div className="flex items-center mb-1 text-xs text-green-400 font-bold uppercase"><i className="fa-solid fa-repeat mr-2"></i> Video Loop & Dauer</div>
-                         <div className="space-y-2">
-                            <div className="flex gap-2 text-xs">
-                               <label className="flex-1 cursor-pointer"><input type="radio" name="loop" checked={!selectedSurface.loopMode || selectedSurface.loopMode === 'infinite'} onChange={() => onUpdateSurface(selectedSurface.id, { loopMode: 'infinite' })} className="mr-1"/> Unendlich</label>
-                               <label className="flex-1 cursor-pointer"><input type="radio" name="loop" checked={selectedSurface.loopMode === 'once'} onChange={() => onUpdateSurface(selectedSurface.id, { loopMode: 'once' })} className="mr-1"/> Einmal</label>
+                         <div className="flex items-center mb-1 text-xs text-green-400 font-bold uppercase"><i className="fa-solid fa-volume-high mr-2"></i> Audio & Ton</div>
+                         <div className="space-y-3">
+                            <div className="space-y-1">
+                                <div className="flex justify-between text-[10px] text-zinc-400"><label>Lautstärke</label><span>{Math.round((selectedSurface.volume ?? 1) * 100)}%</span></div>
+                                <input type="range" min="0" max="1" step="0.05" value={selectedSurface.volume ?? 1} onChange={(e) => onUpdateSurface(selectedSurface.id, { volume: parseFloat(e.target.value) })} className="w-full accent-green-500 h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer"/>
                             </div>
-                            <div className="flex gap-2 text-xs items-center">
-                               <label className="cursor-pointer flex items-center"><input type="radio" name="loop" checked={selectedSurface.loopMode === 'custom'} onChange={() => onUpdateSurface(selectedSurface.id, { loopMode: 'custom' })} className="mr-1"/> Benutzerdefiniert:</label>
-                               <input 
-                                   type="number" min="1" max="100" 
-                                   value={selectedSurface.loopCount || 1} 
-                                   onChange={(e) => {
-                                        const val = e.target.value;
-                                        onUpdateSurface(selectedSurface.id, { loopCount: val === '' ? '' : parseInt(val), loopMode: 'custom' })
-                                   }} 
-                                   className="w-16 bg-zinc-900 border border-zinc-700 rounded px-1 py-0.5 text-center" 
-                                   disabled={selectedSurface.loopMode !== 'custom'} 
-                                />
-                               <span className="text-zinc-500">Mal</span>
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-zinc-400 uppercase font-bold">Stummschalten</span>
+                                <button onClick={() => onUpdateSurface(selectedSurface.id, { isMuted: !selectedSurface.isMuted })} className={`w-10 h-5 rounded-full relative transition-colors ${selectedSurface.isMuted ? 'bg-red-600' : 'bg-zinc-700'}`}>
+                                    <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${selectedSurface.isMuted ? 'left-6' : 'left-1'}`}></div>
+                                </button>
                             </div>
-                            {selectedSurface.loopMode !== 'infinite' && (
-                                <button onClick={handleSetVideoDuration} className="w-full py-1.5 bg-zinc-700 hover:bg-zinc-600 rounded text-xs text-white mt-1">Dauer auf Video anpassen ({((selectedSurface.videoDuration || 0) * (selectedSurface.loopMode==='custom' ? (selectedSurface.loopCount||1) : 1)).toFixed(1)}s)</button>
-                            )}
                          </div>
                       </div>
                     )}
@@ -919,16 +902,11 @@
                     )}
                     <div className={`space-y-3 ${editMode === 'mask' ? 'opacity-50 pointer-events-none' : ''}`}>
                          <div className="space-y-1"><label className="text-xs text-zinc-400">Grundform</label><select value={selectedSurface.shape} onChange={(e) => onUpdateSurface(selectedSurface.id, { shape: e.target.value })} className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 text-sm text-white outline-none"><option value="rect">Rechteck</option><option value="circle">Kreis</option><option value="triangle">Dreieck</option></select></div>
-                         
-                         <div className="space-y-1">
-                            <div className="flex justify-between text-xs text-zinc-400"><label>Rotation</label><span>{selectedSurface.rotation || 0}°</span></div>
-                            <input type="range" min="0" max="360" step="1" value={selectedSurface.rotation || 0} onChange={(e) => onUpdateSurface(selectedSurface.id, { rotation: parseInt(e.target.value) })} className="w-full accent-blue-500 h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer"/>
-                         </div>
-
-                         {(selectedSurface.type === SurfaceType.COLOR || selectedSurface.type === SurfaceType.LINE) && (
+                         <div className="space-y-1"><div className="flex justify-between text-xs text-zinc-400"><label>Rotation</label><span>{selectedSurface.rotation || 0}°</span></div><input type="range" min="0" max="360" step="1" value={selectedSurface.rotation || 0} onChange={(e) => onUpdateSurface(selectedSurface.id, { rotation: parseInt(e.target.value) })} className="w-full accent-blue-500 h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer"/></div>
+                         {(selectedSurface.type === SurfaceType.COLOR || selectedSurface.type === SurfaceType.LINE || selectedSurface.type === SurfaceType.TEXT) && (
                              <div className="space-y-1"><label className="text-xs text-zinc-400">Farbe</label><div className="flex gap-2"><input type="color" value={selectedSurface.src} onChange={(e) => onUpdateSurface(selectedSurface.id, { src: e.target.value })} className="w-8 h-8 rounded cursor-pointer border-none bg-transparent"/><input type="text" value={selectedSurface.src} onChange={(e) => onUpdateSurface(selectedSurface.id, { src: e.target.value })} className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm text-white" /></div></div>
                          )}
-                         {(selectedSurface.type === SurfaceType.LINE || selectedSurface.type === SurfaceType.IMAGE || selectedSurface.type === SurfaceType.COLOR) && (
+                         {(selectedSurface.type === SurfaceType.LINE || selectedSurface.type === SurfaceType.IMAGE || selectedSurface.type === SurfaceType.COLOR || selectedSurface.type === SurfaceType.TEXT) && (
                             <div className="space-y-1">
                                 <div className="flex justify-between text-xs text-zinc-400"><label>Animation</label><input type="checkbox" checked={!!selectedSurface.animationSpeed} onChange={(e) => onUpdateSurface(selectedSurface.id, { animationSpeed: e.target.checked ? 5 : 0 })} /></div>
                                  {selectedSurface.animationSpeed ? (
@@ -949,6 +927,13 @@
                                                 <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'draw' })} className={`flex-1 text-[9px] py-1 border rounded ${selectedSurface.animationType==='draw' ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>Aufbau</button>
                                             </div>
                                         )}
+                                        {(selectedSurface.type === SurfaceType.TEXT) && (
+                                             <div className="grid grid-cols-2 gap-1 mt-1">
+                                                <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'simple' })} className={`text-[9px] py-1 border rounded ${(!selectedSurface.animationType || selectedSurface.animationType==='simple') ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>3D Flow</button>
+                                                <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'pulse' })} className={`text-[9px] py-1 border rounded ${selectedSurface.animationType==='pulse' ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>Pulsieren</button>
+                                                <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'flip' })} className={`text-[9px] py-1 border rounded ${selectedSurface.animationType==='flip' ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>3D Flip</button>
+                                            </div>
+                                        )}
                                      </>
                                  ) : null}
                             </div>
@@ -956,19 +941,13 @@
                         {selectedSurface.type === SurfaceType.LINE && (
                             <div className="space-y-1"><div className="flex justify-between text-xs text-zinc-400"><label>Linienbreite</label><span>{selectedSurface.lineWidth || 10}px</span></div><input type="range" min="1" max="100" value={selectedSurface.lineWidth || 10} onChange={(e) => onUpdateSurface(selectedSurface.id, { lineWidth: parseInt(e.target.value) })} className="w-full accent-cyan-500 h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer"/></div>
                         )}
-                        {selectedSurface.type === SurfaceType.VIDEO && (
-                            <>
-                                <div className="space-y-1"><div className="flex justify-between text-xs text-zinc-400"><label>Vol</label><span>{Math.round((selectedSurface.volume ?? 1) * 100)}%</span></div><input type="range" min="0" max="1" step="0.05" value={Number.isFinite(selectedSurface.volume) ? selectedSurface.volume : 1} onChange={(e) => onUpdateSurface(selectedSurface.id, { volume: parseFloat(e.target.value) })} className="w-full accent-green-500 h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer"/></div>
-                                <div className="space-y-1"><div className="flex justify-between text-xs text-zinc-400"><label>Ton</label><span>{selectedSurface.isMuted ? 'Stumm' : 'An'}</span></div><div className="flex items-center gap-2"><button onClick={() => onUpdateSurface(selectedSurface.id, { isMuted: !selectedSurface.isMuted })} className={`w-8 h-5 rounded-full relative transition-colors ${!selectedSurface.isMuted ? 'bg-green-600' : 'bg-zinc-700'}`}><div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${!selectedSurface.isMuted ? 'left-4' : 'left-1'}`}></div></button></div></div>
-                            </>
-                        )}
                         <div className="space-y-1"><label className="text-xs text-zinc-400">Deckkraft</label><input type="range" min="0" max="1" step="0.01" value={selectedSurface.opacity} onChange={(e) => onUpdateSurface(selectedSurface.id, { opacity: parseFloat(e.target.value) })} className="w-full accent-blue-500 h-1.5 bg-zinc-700 rounded-lg appearance-none"/></div>
                     </div>
                   </div>
                 )}
               </div>
               <div className="bg-zinc-950 border-t border-zinc-800 p-4">
-                  <div className="flex items-center justify-between mb-2"><span className="text-xs text-zinc-500 font-mono">{formatTime(currentTime)}</span><div className="flex gap-2">{!isPlaying ? (<button onClick={onPlay} className="w-8 h-8 rounded-full bg-green-600 hover:bg-green-500 text-white flex items-center justify-center"><i className="fa-solid fa-play"></i></button>) : (<button onClick={onStop} className="w-8 h-8 rounded-full bg-yellow-600 hover:bg-yellow-500 text-white flex items-center justify-center"><i className="fa-solid fa-pause"></i></button>)}<button onClick={onReset} className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center"><i className="fa-solid fa-stop"></i></button></div></div>
+                  <div className="flex items-center justify-between mb-2"><span className="text-xs text-zinc-500 font-mono">{formatTime(currentTime)}</span><div className="flex gap-2">{!isPlaying ? (<button onClick={onPlay} className="w-8 h-8 rounded-full bg-green-600 hover:bg-green-500 text-white flex items-center justify-center transition-colors"><i className="fa-solid fa-play"></i></button>) : (<button onClick={onStop} className="w-8 h-8 rounded-full bg-yellow-600 hover:bg-yellow-500 text-white flex items-center justify-center transition-colors"><i className="fa-solid fa-pause"></i></button>)}<button onClick={onReset} className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition-colors"><i className="fa-solid fa-stop"></i></button></div></div>
                   <div className="h-1 bg-zinc-800 rounded overflow-hidden"><div className="h-full bg-blue-500 w-full animate-pulse opacity-20"></div></div>
               </div>
             </div>
@@ -976,179 +955,76 @@
         };
 
         const App = () => {
-          const [surfaces, setSurfaces] = useState([]);
-          const [selectedId, setSelectedId] = useState(null);
-          const [isUIHidden, setIsUIHidden] = useState(false);
-          const [editMode, setEditMode] = useState('perspective');
-          const [isPlaying, setIsPlaying] = useState(false);
-          const [currentTime, setCurrentTime] = useState(0);
-          
-          // PLAYBACK SETTINGS
+          const [surfaces, setSurfaces] = useState([]); const [selectedId, setSelectedId] = useState(null);
+          const [isUIHidden, setIsUIHidden] = useState(false); const [editMode, setEditMode] = useState('perspective');
+          const [isPlaying, setIsPlaying] = useState(false); const [currentTime, setCurrentTime] = useState(0);
           const [showPlayModal, setShowPlayModal] = useState(false);
           const [playConfig, setPlayConfig] = useState({ loopDuration: 30, mode: 'infinite', count: 1, stopAfter: 60 });
           const [playLoopCount, setPlayLoopCount] = useState(0);
-
-          // DRAWING MODALS
           const [showWindowDrawing, setShowWindowDrawing] = useState(false);
           const [showScreenDrawing, setShowScreenDrawing] = useState(false);
-
           const timerRef = useRef(null);
-          const [draggingHandle, setDraggingHandle] = useState(null);
-          const [draggingSurface, setDraggingSurface] = useState(null);
-          const [lastMousePos, setLastMousePos] = useState(null);
-          const containerRef = useRef(null);
+          const [draggingHandle, setDraggingHandle] = useState(null); const [draggingSurface, setDraggingSurface] = useState(null);
+          const [lastMousePos, setLastMousePos] = useState(null); const containerRef = useRef(null);
 
-          // Calculate default loop duration based on layers
-          const getMaxDuration = () => {
-              let max = 10;
-              surfaces.forEach(s => {
-                  const end = (s.timelineStart || 0) + (s.timelineDuration || 10);
-                  if (end > max) max = end;
-              });
-              return max;
-          };
-
-          const handleOpenPlayModal = () => {
-              setPlayConfig(prev => ({ ...prev, loopDuration: getMaxDuration() }));
-              setShowPlayModal(true);
-          };
-
-          const handleStartPlayback = () => {
-              setShowPlayModal(false);
-              setIsPlaying(true);
-              setPlayLoopCount(0);
-              setCurrentTime(0);
-              setSelectedId(null);
-          };
-
-          const handleStop = () => setIsPlaying(false);
-          const handleReset = () => { setIsPlaying(false); setCurrentTime(0); };
+          const getMaxDuration = () => { let max = 10; surfaces.forEach(s => { const end = (s.timelineStart || 0) + (s.timelineDuration || 10); if (end > max) max = end; }); return max; };
+          const handleOpenPlayModal = () => { setPlayConfig(prev => ({ ...prev, loopDuration: getMaxDuration() })); setShowPlayModal(true); };
+          const handleStartPlayback = () => { setShowPlayModal(false); setIsPlaying(true); setPlayLoopCount(0); setCurrentTime(0); setSelectedId(null); };
+          const handleStop = () => setIsPlaying(false); const handleReset = () => { setIsPlaying(false); setCurrentTime(0); };
 
           useEffect(() => {
               if (isPlaying) {
-                  const startTime = Date.now() - (currentTime * 1000);
-                  const startTimestamp = Date.now();
-
+                  const startTime = Date.now() - (currentTime * 1000); const startTimestamp = Date.now();
                   timerRef.current = window.setInterval(() => {
-                      const now = Date.now();
-                      const rawTime = (now - startTime) / 1000;
-                      
-                      // Handle Global Stop Timer
-                      if (playConfig.mode === 'timer' && (now - startTimestamp)/1000 >= playConfig.stopAfter) {
-                          handleStop();
-                          return;
-                      }
-
-                      // Handle Looping
-                      if (playConfig.loopDuration > 0 && rawTime >= playConfig.loopDuration) {
-                          if (playConfig.mode === 'count') {
-                               const newLoopCount = playLoopCount + 1;
-                               if (newLoopCount >= playConfig.count) {
-                                   handleStop();
-                                   return;
-                               }
-                               setPlayLoopCount(newLoopCount);
-                          }
-                      }
-                      
-                      if (playConfig.loopDuration > 0) {
-                          setCurrentTime(rawTime % playConfig.loopDuration);
-                      } else {
-                          setCurrentTime(rawTime);
-                      }
-
+                      const now = Date.now(); const rawTime = (now - startTime) / 1000;
+                      if (playConfig.mode === 'timer' && (now - startTimestamp)/1000 >= playConfig.stopAfter) { handleStop(); return; }
+                      if (playConfig.loopDuration > 0 && rawTime >= playConfig.loopDuration) { if (playConfig.mode === 'count') { const newLoopCount = playLoopCount + 1; if (newLoopCount >= playConfig.count) { handleStop(); return; } setPlayLoopCount(newLoopCount); } }
+                      if (playConfig.loopDuration > 0) setCurrentTime(rawTime % playConfig.loopDuration); else setCurrentTime(rawTime);
                   }, 50);
               } else { if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; } }
               return () => { if (timerRef.current) clearInterval(timerRef.current); };
-          }, [isPlaying, playConfig, playLoopCount]); // Re-bind if config changes, though mostly static during play
+          }, [isPlaying, playConfig, playLoopCount]);
 
-          const getLocalPos = useCallback((clientX, clientY) => {
-            if (!containerRef.current) return { x: clientX, y: clientY };
-            const rect = containerRef.current.getBoundingClientRect();
-            return { x: clientX - rect.left, y: clientY - rect.top };
-          }, []);
-
+          const getLocalPos = useCallback((clientX, clientY) => { if (!containerRef.current) return { x: clientX, y: clientY }; const rect = containerRef.current.getBoundingClientRect(); return { x: clientX - rect.left, y: clientY - rect.top }; }, []);
           const handleAddSurface = (type, src, shape = 'rect', initialWidth = 300, initialHeight = 300, duration = 0, customCx = null, customCy = null) => {
-            if (!containerRef.current) return;
-            const rect = containerRef.current.getBoundingClientRect();
-            
-            // Use custom center if provided (for Screen Drawing), otherwise screen center
-            const cx = customCx !== null ? customCx : (rect.width / 2);
-            const cy = customCy !== null ? customCy : (rect.height / 2);
-
-            const halfW = initialWidth / 2;
-            const halfH = initialHeight / 2;
-            
+            if (!containerRef.current) return; const rect = containerRef.current.getBoundingClientRect();
+            const cx = customCx !== null ? customCx : (rect.width / 2); const cy = customCy !== null ? customCy : (rect.height / 2);
+            const halfW = initialWidth / 2; const halfH = initialHeight / 2;
             const newSurface = {
-              id: uuidv4(), name: `Fläche ${surfaces.length + 1}`, type, shape, src,
+              id: uuidv4(), name: `${type === 'TEXT' ? 'Text' : 'Fläche'} ${surfaces.length + 1}`, type, shape, src,
               corners: [{ x: cx - halfW, y: cy - halfH }, { x: cx + halfW, y: cy - halfH }, { x: cx + halfW, y: cy + halfH }, { x: cx - halfW, y: cy + halfH }],
               opacity: 1, visible: true, zIndex: surfaces.length + 1, lineWidth: 10, animationSpeed: 0, animationType: 'simple', isMuted: false, volume: 1, 
-              timelineStart: 0, timelineDuration: 10, rotation: 0, 
-              videoDuration: duration, loopMode: 'infinite', loopCount: 1
+              timelineStart: 0, timelineDuration: 10, rotation: 0, videoDuration: duration, loopMode: 'infinite', loopCount: 1,
+              textContent: type === 'TEXT' ? 'PROJECTION' : '', fontSize: type === 'TEXT' ? 80 : 0, isVertical: false
             };
-            setSurfaces(prev => [...prev, newSurface]); setSelectedId(newSurface.id); setEditMode('perspective');
-            return newSurface; // Return for further modification if needed
+            setSurfaces(prev => [...prev, newSurface]); setSelectedId(newSurface.id); setEditMode('perspective'); return newSurface;
           };
           
           const handleSaveWindowDrawing = (dataUrl) => {
               setShowWindowDrawing(false);
-              // FIXED: Use 500x500 to match the Canvas resolution 1:1, preventing shrinking.
               const newSurface = handleAddSurface(SurfaceType.IMAGE, dataUrl, 'rect', 500, 500);
-              if (newSurface) {
-                  // Enable 3D animation by default for drawings
-                  handleUpdateSurface(newSurface.id, { animationSpeed: 4, animationType: 'spin3d', name: 'Zeichnung 3D' });
-              }
+              if (newSurface) handleUpdateSurface(newSurface.id, { animationSpeed: 4, animationType: 'spin3d', name: 'Zeichnung' });
           };
           
           const handleSaveScreenDrawing = (dataUrl, rect) => {
-              setShowScreenDrawing(false);
-              if (!containerRef.current) return;
-              
-              // We need to translate the Global coordinates (from fixed overlay) 
-              // to the Local coordinates of the projection container.
-              const containerRect = containerRef.current.getBoundingClientRect();
-              
-              // Calculate center relative to container
-              // Global Center of Bounding Box
-              const gCx = rect.x + (rect.w / 2);
-              const gCy = rect.y + (rect.h / 2);
-              
-              // Local Center
-              const lCx = gCx - containerRect.left;
-              const lCy = gCy - containerRect.top;
-
-              const newSurface = handleAddSurface(
-                  SurfaceType.IMAGE, 
-                  dataUrl, 
-                  'rect', 
-                  rect.w, 
-                  rect.h, 
-                  0, 
-                  lCx, 
-                  lCy
-              );
-
-              if (newSurface) {
-                   // Instant 3D Animation
-                   handleUpdateSurface(newSurface.id, { animationSpeed: 5, animationType: 'spin3d', name: 'Screen Sketch 3D' });
-              }
+              setShowScreenDrawing(false); if (!containerRef.current) return; const containerRect = containerRef.current.getBoundingClientRect();
+              const gCx = rect.x + (rect.w / 2); const gCy = rect.y + (rect.h / 2); const lCx = gCx - containerRect.left; const lCy = gCy - containerRect.top;
+              const newSurface = handleAddSurface(SurfaceType.IMAGE, dataUrl, 'rect', rect.w, rect.h, 0, lCx, lCy);
+              if (newSurface) handleUpdateSurface(newSurface.id, { animationSpeed: 5, animationType: 'spin3d', name: 'Direkt-Zeichnung' });
           };
 
           const handleUpdateSurface = (id, updates) => setSurfaces(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
           const handleDeleteSurface = (id) => { setSurfaces(prev => prev.filter(s => s.id !== id)); if (selectedId === id) setSelectedId(null); };
-          const handleLoadProject = (loaded) => { if(Array.isArray(loaded)){ setSurfaces(loaded); setSelectedId(null); } else { alert("Fehler"); } };
-
+          const handleLoadProject = (loaded) => { if(Array.isArray(loaded)){ setSurfaces(loaded); setSelectedId(null); } };
           const handleMouseDown = (e) => { if (isPlaying) return; if (e.target === containerRef.current) setSelectedId(null); };
           const getEventClientPos = (e) => { if ('touches' in e) return { x: e.touches[0].clientX, y: e.touches[0].clientY }; return { x: e.clientX, y: e.clientY }; };
-          
           const handleHandleStart = (e, surfaceId, index, isMask) => { if (isPlaying) return; e.stopPropagation(); if ('touches' in e) e.preventDefault(); setDraggingHandle({ surfaceId, index, isMask }); setSelectedId(surfaceId); };
           const handleHandleDoubleClick = (e, surfaceId, index, isMask) => { if (isPlaying) return; e.stopPropagation(); if (!isMask) return; const s = surfaces.find(s => s.id === surfaceId); if (!s || !s.maskPoints || s.maskPoints.length <= 3) return; const newMask = [...s.maskPoints]; newMask.splice(index, 1); handleUpdateSurface(surfaceId, { maskPoints: newMask }); };
           const handleGhostStart = (e, surfaceId, insertIndex) => { if (isPlaying) return; e.stopPropagation(); if ('touches' in e) e.preventDefault(); const s = surfaces.find(s => s.id === surfaceId); if (!s || !s.maskPoints) return; const len = s.maskPoints.length; const prevIndex = (insertIndex - 1 + len) % len; const p1 = s.maskPoints[prevIndex]; const p2 = s.maskPoints[insertIndex % len]; const midPoint = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }; const newMask = [...s.maskPoints]; newMask.splice(insertIndex, 0, midPoint); handleUpdateSurface(surfaceId, { maskPoints: newMask }); setDraggingHandle({ surfaceId, index: insertIndex, isMask: true }); setSelectedId(surfaceId); };
           const handleSurfaceStart = (e, surfaceId) => { if (isPlaying) return; if (draggingHandle) return; e.stopPropagation(); if ('touches' in e) e.preventDefault(); const { x, y } = getEventClientPos(e); setSelectedId(surfaceId); setDraggingSurface(surfaceId); setLastMousePos(getLocalPos(x, y)); };
 
           const processMove = useCallback((clientX, clientY) => {
-            if (isPlaying) return;
-            const mousePos = getLocalPos(clientX, clientY);
+            if (isPlaying) return; const mousePos = getLocalPos(clientX, clientY);
             if (draggingHandle) {
               setSurfaces(prev => prev.map(s => {
                 if (s.id !== draggingHandle.surfaceId) return s;
@@ -1160,8 +1036,7 @@
                 setSurfaces(prev => prev.map(s => {
                     if (s.id !== draggingSurface) return s;
                     const newCorners = s.corners.map(p => ({ x: p.x + dx, y: p.y + dy }));
-                    let newMaskPoints = s.maskPoints;
-                    if (s.maskPoints) newMaskPoints = s.maskPoints.map(p => ({ x: p.x + dx, y: p.y + dy }));
+                    let newMaskPoints = s.maskPoints; if (s.maskPoints) newMaskPoints = s.maskPoints.map(p => ({ x: p.x + dx, y: p.y + dy }));
                     return { ...s, corners: newCorners, maskPoints: newMaskPoints };
                 }));
                 setLastMousePos(mousePos);
@@ -1177,14 +1052,7 @@
           }, [processMove, draggingHandle, draggingSurface]);
 
           useEffect(() => {
-            const handleKeyDown = (e) => {
-              // Ignore hotkeys if focused element is an input
-              if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
-
-              if (e.key === 'Escape') setSelectedId(null);
-              if (e.key === 'Delete' || e.key === 'Backspace') { if (selectedId && !isPlaying) handleDeleteSurface(selectedId); }
-              if (e.key === 'h') setIsUIHidden(prev => !prev);
-            };
+            const handleKeyDown = (e) => { if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return; if (e.key === 'Escape') setSelectedId(null); if (e.key === 'Delete' || e.key === 'Backspace') { if (selectedId && !isPlaying) handleDeleteSurface(selectedId); } if (e.key === 'h') setIsUIHidden(prev => !prev); };
             window.addEventListener('keydown', handleKeyDown); return () => window.removeEventListener('keydown', handleKeyDown);
           }, [selectedId, isPlaying]);
 
@@ -1194,100 +1062,68 @@
           return (
             <div className="flex w-full overflow-hidden relative font-sans text-gray-200" style={{ height: '100dvh' }}>
               
-              {/* PLAYBACK CONFIG MODAL */}
               {showPlayModal && (
                   <div className="absolute inset-0 bg-black/80 z-[300] flex items-center justify-center p-4">
                       <div className="w-full max-w-sm bg-zinc-900 border border-zinc-700 rounded-lg p-5 shadow-2xl">
-                          <h3 className="text-lg font-bold text-white mb-4 border-b border-zinc-800 pb-2">Wiedergabe Einstellungen</h3>
-                          
+                          <h3 className="text-lg font-bold text-white mb-4 border-b border-zinc-800 pb-2">Sequenz-Einstellung</h3>
                           <div className="space-y-4 mb-6">
+                              <div><label className="text-xs text-zinc-400 block mb-1 uppercase font-bold">Länge (Sekunden)</label><input type="number" min="1" step="0.1" value={playConfig.loopDuration} onChange={(e) => setPlayConfig(prev => ({...prev, loopDuration: parseFloat(e.target.value)}))} className="w-full bg-black border border-zinc-700 rounded px-3 py-2 text-white outline-none focus:border-blue-500" /></div>
                               <div>
-                                  <label className="text-xs text-zinc-400 block mb-1 uppercase font-bold">Sequenz-Länge (Sekunden)</label>
-                                  <input type="number" min="1" step="0.1" value={Number.isFinite(playConfig.loopDuration) ? playConfig.loopDuration : ''} onChange={(e) => setPlayConfig(prev => ({...prev, loopDuration: parseFloat(e.target.value)}))} className="w-full bg-black border border-zinc-700 rounded px-3 py-2 text-white focus:border-green-500 outline-none" />
-                                  <p className="text-[10px] text-zinc-500 mt-1">Zeitpunkt, an dem die Timeline wieder von vorne beginnt.</p>
-                              </div>
-
-                              <div>
-                                  <label className="text-xs text-zinc-400 block mb-1 uppercase font-bold">Wiedergabe-Modus</label>
+                                  <label className="text-xs text-zinc-400 block mb-1 uppercase font-bold">Modus</label>
                                   <div className="flex flex-col gap-2">
-                                      <label className="flex items-center gap-2 p-2 rounded bg-zinc-800 border border-zinc-700 cursor-pointer">
+                                      <label className="flex items-center gap-2 p-2 rounded bg-zinc-800 border border-zinc-700 cursor-pointer transition-colors hover:bg-zinc-700">
                                           <input type="radio" name="playMode" checked={playConfig.mode === 'infinite'} onChange={() => setPlayConfig(prev => ({...prev, mode: 'infinite'}))} className="accent-green-500"/>
-                                          <span className="text-sm">Unendlich wiederholen</span>
+                                          <span className="text-sm">Unendlich</span>
                                       </label>
-                                      
                                       <div className={`p-2 rounded border border-zinc-700 transition-colors ${playConfig.mode === 'count' ? 'bg-zinc-800 border-green-900' : 'bg-zinc-900'}`}>
                                           <label className="flex items-center gap-2 cursor-pointer mb-2">
                                               <input type="radio" name="playMode" checked={playConfig.mode === 'count'} onChange={() => setPlayConfig(prev => ({...prev, mode: 'count'}))} className="accent-green-500"/>
-                                              <span className="text-sm">Anzahl Durchläufe</span>
+                                              <span className="text-sm">Anzahl Durchläufe:</span>
                                           </label>
-                                          {playConfig.mode === 'count' && (
-                                              <input type="number" min="1" value={Number.isFinite(playConfig.count) ? playConfig.count : ''} onChange={(e) => setPlayConfig(prev => ({...prev, count: parseInt(e.target.value)}))} className="w-full bg-black border border-zinc-700 rounded px-2 py-1 text-sm text-white"/>
-                                          )}
+                                          {playConfig.mode === 'count' && <input type="number" min="1" value={playConfig.count} onChange={(e) => setPlayConfig(prev => ({...prev, count: parseInt(e.target.value)}))} className="w-full bg-black border border-zinc-700 rounded px-2 py-1 text-sm text-white focus:border-green-500 outline-none"/>}
                                       </div>
-
                                       <div className={`p-2 rounded border border-zinc-700 transition-colors ${playConfig.mode === 'timer' ? 'bg-zinc-800 border-green-900' : 'bg-zinc-900'}`}>
                                           <label className="flex items-center gap-2 cursor-pointer mb-2">
                                               <input type="radio" name="playMode" checked={playConfig.mode === 'timer'} onChange={() => setPlayConfig(prev => ({...prev, mode: 'timer'}))} className="accent-green-500"/>
-                                              <span className="text-sm">Stop nach Zeit (Sekunden)</span>
+                                              <span className="text-sm">Stop nach Zeit (Sek):</span>
                                           </label>
-                                          {playConfig.mode === 'timer' && (
-                                              <input type="number" min="1" value={Number.isFinite(playConfig.stopAfter) ? playConfig.stopAfter : ''} onChange={(e) => setPlayConfig(prev => ({...prev, stopAfter: parseInt(e.target.value)}))} className="w-full bg-black border border-zinc-700 rounded px-2 py-1 text-sm text-white"/>
-                                          )}
+                                          {playConfig.mode === 'timer' && <input type="number" min="1" value={playConfig.stopAfter} onChange={(e) => setPlayConfig(prev => ({...prev, stopAfter: parseInt(e.target.value)}))} className="w-full bg-black border border-zinc-700 rounded px-2 py-1 text-sm text-white focus:border-green-500 outline-none"/>}
                                       </div>
                                   </div>
                               </div>
                           </div>
-
-                          <div className="flex gap-3">
-                              <button onClick={() => setShowPlayModal(false)} className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300 font-medium">Abbrechen</button>
-                              <button onClick={handleStartPlayback} className="flex-1 py-2 bg-green-600 hover:bg-green-500 rounded text-white font-bold shadow-lg shadow-green-900/20"><i className="fa-solid fa-play mr-2"></i> Starten</button>
-                          </div>
+                          <div className="flex gap-3"><button onClick={() => setShowPlayModal(false)} className="flex-1 py-2 bg-zinc-800 rounded text-zinc-300 font-bold">Abbruch</button><button onClick={handleStartPlayback} className="flex-1 py-2 bg-green-600 rounded text-white font-bold shadow-lg shadow-green-900/20">Wiedergeben</button></div>
                       </div>
                   </div>
               )}
 
-              {/* WINDOW DRAWING MODAL */}
-              {showWindowDrawing && (
-                  <DrawingModal onClose={() => setShowWindowDrawing(false)} onSave={handleSaveWindowDrawing} />
-              )}
-              
-              {/* SCREEN DRAWING OVERLAY */}
-              {showScreenDrawing && (
-                  <ScreenDrawingOverlay onClose={() => setShowScreenDrawing(false)} onSave={handleSaveScreenDrawing} />
-              )}
-
+              {showWindowDrawing && <DrawingModal onClose={() => setShowWindowDrawing(false)} onSave={handleSaveWindowDrawing} />}
+              {showScreenDrawing && <ScreenDrawingOverlay onClose={() => setShowScreenDrawing(false)} onSave={handleSaveScreenDrawing} />}
               <div className={`absolute left-0 top-0 h-full max-w-full transition-transform duration-300 z-[100] ${isUIHidden ? '-translate-x-full' : 'translate-x-0'}`}>
                 <Sidebar surfaces={surfaces} selectedId={selectedId} editMode={editMode} onSetEditMode={setEditMode} onAddSurface={handleAddSurface} onSelect={setSelectedId} onUpdateSurface={handleUpdateSurface} onDeleteSurface={handleDeleteSurface} onLoadProject={handleLoadProject} onToggleFullscreen={toggleFullscreen} onCloseMobile={() => setIsUIHidden(true)} isPlaying={isPlaying} currentTime={currentTime} onPlay={handleOpenPlayModal} onStop={handleStop} onReset={handleReset} onOpenWindowDrawing={() => setShowWindowDrawing(true)} onOpenScreenDrawing={() => setShowScreenDrawing(true)} />
               </div>
-              <div className={`absolute top-4 left-4 z-[90] transition-opacity duration-300 ${isUIHidden ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                  <button onClick={() => setIsUIHidden(false)} className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center text-white shadow-lg border border-zinc-700 hover:bg-zinc-700"><i className="fa-solid fa-bars"></i></button>
-              </div>
+              <div className={`absolute top-4 left-4 z-[90] transition-opacity duration-300 ${isUIHidden ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}><button onClick={() => setIsUIHidden(false)} className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center text-white shadow-lg border border-zinc-700 hover:bg-zinc-700 transition"><i className="fa-solid fa-bars"></i></button></div>
               <div ref={containerRef} className="flex-1 relative bg-black cursor-crosshair overflow-hidden w-full h-full touch-none" onMouseDown={handleMouseDown}>
-                {surfaces.map(surface => (
-                  <SurfaceLayer key={surface.id} surface={surface} isSelected={selectedId === surface.id && !isUIHidden} onSelect={(id) => { if(!isUIHidden && !isPlaying) setSelectedId(id); }} isPlaying={isPlaying} globalTime={currentTime}/>
-                ))}
+                {surfaces.map(surface => <SurfaceLayer key={surface.id} surface={surface} isSelected={selectedId === surface.id && !isUIHidden} onSelect={(id) => { if(!isUIHidden && !isPlaying) setSelectedId(id); }} isPlaying={isPlaying} globalTime={currentTime}/>)}
                 {selectedSurface && !isUIHidden && !isPlaying && (
                   <div className="absolute inset-0 pointer-events-none z-[200]">
                     {editMode === 'perspective' && (
                         <>
                             <svg className="absolute inset-0 w-full h-full overflow-visible pointer-events-none"><path d={`M ${selectedSurface.corners[0].x} ${selectedSurface.corners[0].y} L ${selectedSurface.corners[1].x} ${selectedSurface.corners[1].y} L ${selectedSurface.corners[2].x} ${selectedSurface.corners[2].y} L ${selectedSurface.corners[3].x} ${selectedSurface.corners[3].y} Z`} fill="none" stroke="#3b82f6" strokeWidth="1" strokeDasharray="4 2"/></svg>
-                            {selectedSurface.corners.map((corner, idx) => (
-                            <div key={`c-${idx}`} className="absolute w-8 h-8 bg-blue-500/50 border-2 border-white rounded-full shadow cursor-move pointer-events-auto flex items-center justify-center backdrop-blur-sm" style={{ left: corner.x - 16, top: corner.y - 16 }} onMouseDown={(e) => handleHandleStart(e, selectedSurface.id, idx, false)} onTouchStart={(e) => handleHandleStart(e, selectedSurface.id, idx, false)}><div className="w-2 h-2 bg-white rounded-full" /></div>
-                            ))}
-                            <div className="absolute w-10 h-10 bg-white/20 border border-white/50 rounded-full cursor-grab pointer-events-auto flex items-center justify-center backdrop-blur-sm" style={{ left: (selectedSurface.corners[0].x + selectedSurface.corners[2].x) / 2 - 20, top: (selectedSurface.corners[0].y + selectedSurface.corners[2].y) / 2 - 20 }} onMouseDown={(e) => handleSurfaceStart(e, selectedSurface.id)} onTouchStart={(e) => handleSurfaceStart(e, selectedSurface.id)} title="Verschieben"><i className="fa-solid fa-arrows-up-down-left-right text-sm text-white"></i></div>
+                            {selectedSurface.corners.map((corner, idx) => <div key={`c-${idx}`} className="absolute w-8 h-8 bg-blue-500/50 border-2 border-white rounded-full shadow cursor-move pointer-events-auto flex items-center justify-center backdrop-blur-sm transition-transform hover:scale-110" style={{ left: corner.x - 16, top: corner.y - 16 }} onMouseDown={(e) => handleHandleStart(e, selectedSurface.id, idx, false)} onTouchStart={(e) => handleHandleStart(e, selectedSurface.id, idx, false)}><div className="w-2 h-2 bg-white rounded-full" /></div>)}
+                            <div className="absolute w-10 h-10 bg-white/20 border border-white/50 rounded-full cursor-grab pointer-events-auto flex items-center justify-center backdrop-blur-sm" style={{ left: (selectedSurface.corners[0].x + selectedSurface.corners[2].x) / 2 - 20, top: (selectedSurface.corners[0].y + selectedSurface.corners[2].y) / 2 - 20 }} onMouseDown={(e) => handleSurfaceStart(e, selectedSurface.id)} onTouchStart={(e) => handleSurfaceStart(e, selectedSurface.id)}><i className="fa-solid fa-arrows-up-down-left-right text-sm text-white"></i></div>
                         </>
                     )}
                     {editMode === 'mask' && selectedSurface.maskPoints && (
                         <>
                             <svg className="absolute inset-0 w-full h-full overflow-visible pointer-events-none"><polygon points={selectedSurface.maskPoints.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke="#22c55e" strokeWidth="2"/></svg>
                             {selectedSurface.maskPoints.map((point, idx) => {
-                                const nextIdx = (idx + 1) % selectedSurface.maskPoints.length;
-                                const nextPoint = selectedSurface.maskPoints[nextIdx];
+                                const nextIdx = (idx + 1) % selectedSurface.maskPoints.length; const nextPoint = selectedSurface.maskPoints[nextIdx];
                                 const midX = (point.x + nextPoint.x) / 2; const midY = (point.y + nextPoint.y) / 2;
                                 return (
                                     <React.Fragment key={`m-${idx}`}>
-                                        <div className="absolute w-6 h-6 bg-green-500 border-2 border-white rounded-sm shadow cursor-move pointer-events-auto flex items-center justify-center z-10" style={{ left: point.x - 12, top: point.y - 12 }} onMouseDown={(e) => handleHandleStart(e, selectedSurface.id, idx, true)} onTouchStart={(e) => handleHandleStart(e, selectedSurface.id, idx, true)} onDoubleClick={(e) => handleHandleDoubleClick(e, selectedSurface.id, idx, true)} />
-                                        <div className="absolute w-5 h-5 bg-green-500/30 border border-green-300 rounded-full cursor-pointer pointer-events-auto flex items-center justify-center z-0" style={{ left: midX - 10, top: midY - 10 }} onMouseDown={(e) => handleGhostStart(e, selectedSurface.id, nextIdx)} onTouchStart={(e) => handleGhostStart(e, selectedSurface.id, nextIdx)}><i className="fa-solid fa-plus text-[10px] text-white"></i></div>
+                                        <div className="absolute w-6 h-6 bg-green-500 border-2 border-white rounded-sm shadow cursor-move pointer-events-auto flex items-center justify-center z-10 hover:scale-110 transition-transform" style={{ left: point.x - 12, top: point.y - 12 }} onMouseDown={(e) => handleHandleStart(e, selectedSurface.id, idx, true)} onTouchStart={(e) => handleHandleStart(e, selectedSurface.id, idx, true)} onDoubleClick={(e) => handleHandleDoubleClick(e, selectedSurface.id, idx, true)} />
+                                        <div className="absolute w-5 h-5 bg-green-500/30 border border-green-300 rounded-full cursor-pointer pointer-events-auto flex items-center justify-center z-0 transition-all hover:bg-green-500 hover:scale-110" style={{ left: midX - 10, top: midY - 10 }} onMouseDown={(e) => handleGhostStart(e, selectedSurface.id, nextIdx)} onTouchStart={(e) => handleGhostStart(e, selectedSurface.id, nextIdx)}><i className="fa-solid fa-plus text-[10px] text-white"></i></div>
                                     </React.Fragment>
                                 );
                             })}

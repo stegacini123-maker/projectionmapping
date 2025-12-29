@@ -39,7 +39,7 @@
 
       /* --- ANIMATIONS --- */
       
-      /* Neon Line Animations */
+      /* Existing Animations */
       .animate-glow { animation: neon-pulse 2s infinite linear; }
       .animate-dash { animation: dash-cycle 2s infinite linear; }
       .animate-draw { 
@@ -48,33 +48,25 @@
           animation-fill-mode: forwards;
           animation-timing-function: linear; 
       }
-      
-      /* Image Animations */
       .animate-hue { animation: hue-cycle 5s infinite linear; }
       .animate-spin-3d { 
           animation: spin-3d 5s infinite linear; 
           transform-style: preserve-3d;
       }
-
-      /* Text Animations */
       .animate-text-3d {
           animation: text-3d-complex 6s infinite ease-in-out;
           transform-style: preserve-3d;
           display: inline-block;
       }
-      
       .animate-text-pulse {
           animation: text-pulse-glow 2s infinite ease-in-out;
           display: inline-block;
       }
-
       .animate-text-flip {
           animation: text-flip-3d 4s infinite linear;
           transform-style: preserve-3d;
           display: inline-block;
       }
-
-      /* Image Chase (Lauflicht) */
       .animate-image-chase {
           mask-image: repeating-linear-gradient(90deg, black 0%, black 25%, transparent 25%, transparent 50%);
           -webkit-mask-image: repeating-linear-gradient(90deg, black 0%, black 25%, transparent 25%, transparent 50%);
@@ -82,17 +74,21 @@
           -webkit-mask-size: 200% 100%;
           animation: mask-scroll 2s infinite linear;
       }
-
-      /* Image Draw (Aufbau) */
       .animate-image-draw {
           animation: reveal-wipe 2s forwards linear; 
       }
-
-      /* Color Surface Animations */
       .animate-scanner { 
           background-size: 200% 100% !important; 
           animation: scanner-swipe 2s infinite linear; 
       }
+
+      /* --- NEW ANIMATIONS --- */
+      .animate-shake { animation: shake 0.5s infinite ease-in-out; }
+      .animate-float { animation: float 3s infinite ease-in-out; }
+      .animate-blink { animation: blink 1s infinite steps(1); }
+      .animate-sway { animation: sway 4s infinite ease-in-out; transform-origin: top center; }
+      .animate-scale { animation: scale-pulse 2s infinite ease-in-out; }
+      .animate-glitch { animation: glitch 0.3s infinite linear; }
 
       /* --- KEYFRAMES --- */
       @keyframes neon-pulse {
@@ -106,7 +102,6 @@
       }
       @keyframes dash-cycle { to { stroke-dashoffset: -1000; } }
       @keyframes draw-stroke { to { stroke-dashoffset: 0; } }
-      
       @keyframes scanner-swipe {
         0% { background-position: 100% 0; }
         100% { background-position: -100% 0; }
@@ -115,8 +110,6 @@
         0% { transform: rotateY(0deg) rotateX(10deg); }
         100% { transform: rotateY(360deg) rotateX(10deg); }
       }
-      
-      /* Complex 3D Text Keyframes */
       @keyframes text-3d-complex {
           0% { transform: translate3d(0, 0, 0) rotate3d(1, 1, 1, 0deg) scale3d(1, 1, 1); }
           25% { transform: translate3d(20px, -10px, 50px) rotate3d(0, 1, 0.5, 45deg) scale3d(1.1, 1.1, 1.1); }
@@ -124,27 +117,53 @@
           75% { transform: translate3d(-20px, -10px, 50px) rotate3d(0, -1, 0.5, 270deg) scale3d(1.2, 1.2, 1.2); }
           100% { transform: translate3d(0, 0, 0) rotate3d(1, 1, 1, 360deg) scale3d(1, 1, 1); }
       }
-
-      /* Text Pulse Glow */
       @keyframes text-pulse-glow {
           0%, 100% { transform: scale(1); filter: drop-shadow(0 0 5px currentColor); opacity: 0.8; }
           50% { transform: scale(1.1); filter: drop-shadow(0 0 20px currentColor); opacity: 1; }
       }
-
-      /* 3D Flip */
       @keyframes text-flip-3d {
           0% { transform: rotateY(0deg); }
           100% { transform: rotateY(360deg); }
       }
-      
       @keyframes reveal-wipe {
         0% { clip-path: inset(0 100% 0 0); }
         100% { clip-path: inset(0 0 0 0); }
       }
-      
       @keyframes mask-scroll {
         0% { mask-position: 100% 0; -webkit-mask-position: 100% 0; }
         100% { mask-position: -100% 0; -webkit-mask-position: -100% 0; }
+      }
+
+      /* --- NEW KEYFRAMES --- */
+      @keyframes shake {
+        0%, 100% { transform: translate(0, 0); }
+        25% { transform: translate(-5px, 5px); }
+        50% { transform: translate(5px, -5px); }
+        75% { transform: translate(-5px, -5px); }
+      }
+      @keyframes float {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-30px); }
+      }
+      @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0; }
+      }
+      @keyframes sway {
+        0%, 100% { transform: rotate(-8deg); }
+        50% { transform: rotate(8deg); }
+      }
+      @keyframes scale-pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.15); }
+      }
+      @keyframes glitch {
+        0% { clip-path: inset(20% 0 30% 0); transform: translate(-5px, 5px); }
+        20% { clip-path: inset(60% 0 10% 0); transform: translate(5px, -5px); }
+        40% { clip-path: inset(40% 0 50% 0); transform: translate(-5px, 0px); }
+        60% { clip-path: inset(80% 0 5% 0); transform: translate(5px, 5px); }
+        80% { clip-path: inset(10% 0 70% 0); transform: translate(-5px, -5px); }
+        100% { clip-path: inset(0 0 0 0); transform: translate(0); }
       }
     </style>
 
@@ -268,7 +287,7 @@
             const [ctx, setCtx] = useState(null);
             const [color, setColor] = useState('#00ffff');
             const [lineWidth, setLineWidth] = useState(5);
-            const [isStraight, setIsStraight] = useState(false);
+            const [drawMode, setDrawMode] = useState('free');
             const [startPos, setStartPos] = useState(null);
             const [snapshot, setSnapshot] = useState(null);
             const CANVAS_SIZE = 500; 
@@ -319,11 +338,32 @@
                 e.preventDefault();
                 const pos = getPos(e);
                 
-                if (isStraight || pos.shiftKey) {
+                if (drawMode !== 'free') {
                     ctx.putImageData(snapshot, 0, 0);
                     ctx.beginPath();
-                    ctx.moveTo(startPos.x, startPos.y);
-                    ctx.lineTo(pos.x, pos.y);
+                    const dx = pos.x - startPos.x;
+                    const dy = pos.y - startPos.y;
+                    
+                    if (drawMode === 'line') {
+                        ctx.moveTo(startPos.x, startPos.y);
+                        ctx.lineTo(pos.x, pos.y);
+                    } else if (drawMode === 'circle') {
+                        const radius = Math.sqrt(dx*dx + dy*dy);
+                        ctx.arc(startPos.x, startPos.y, radius, 0, Math.PI * 2);
+                    } else if (drawMode === 'semicircle') {
+                        const radius = Math.sqrt(dx*dx + dy*dy) / 2;
+                        const centerX = (startPos.x + pos.x) / 2;
+                        const centerY = (startPos.y + pos.y) / 2;
+                        const angle = Math.atan2(dy, dx);
+                        ctx.arc(centerX, centerY, radius, angle, angle + Math.PI);
+                    } else if (drawMode === 'arc') {
+                        const radius = Math.sqrt(dx*dx + dy*dy);
+                        const angle = Math.atan2(dy, dx);
+                        ctx.arc(startPos.x, startPos.y, radius, 0, angle);
+                    } else if (drawMode === 'curve') {
+                        ctx.moveTo(startPos.x, startPos.y);
+                        ctx.quadraticCurveTo(startPos.x, pos.y, pos.x, pos.y);
+                    }
                     ctx.stroke();
                 } else {
                     ctx.lineTo(pos.x, pos.y);
@@ -336,29 +376,23 @@
                 if(ctx) ctx.closePath();
             };
 
-            const clearCanvas = () => {
-                if(ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-            };
-
-            const handleSave = () => {
-                const dataUrl = canvasRef.current.toDataURL('image/png');
-                onSave(dataUrl);
-            };
-
             return (
                 <div className="absolute inset-0 bg-black/90 z-[300] flex items-center justify-center p-4">
                     <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-4 shadow-xl flex flex-col max-w-lg w-full">
                         <div className="flex justify-between items-center mb-4 text-white">
                             <h3 className="text-lg font-bold">Fenster Zeichnen</h3>
-                            <div className="flex gap-2">
-                                <button onClick={() => setIsStraight(!isStraight)} className={`px-3 py-1 rounded text-[10px] uppercase font-bold border transition-colors ${isStraight ? 'bg-blue-600 border-blue-400' : 'bg-zinc-800 border-zinc-700'}`}>
-                                    <i className="fa-solid fa-minus mr-1"></i> Gerade Linie {isStraight ? 'AN' : 'AUS'}
-                                </button>
-                                <button onClick={onClose} className="text-zinc-400 hover:text-white"><i className="fa-solid fa-xmark"></i></button>
+                            <div className="flex gap-1">
+                                <button onClick={() => setDrawMode('free')} className={`p-2 rounded ${drawMode === 'free' ? 'bg-blue-600' : 'bg-zinc-800'}`} title="Freihand"><i className="fa-solid fa-pen"></i></button>
+                                <button onClick={() => setDrawMode('line')} className={`p-2 rounded ${drawMode === 'line' ? 'bg-blue-600' : 'bg-zinc-800'}`} title="Linie"><i className="fa-solid fa-minus"></i></button>
+                                <button onClick={() => setDrawMode('circle')} className={`p-2 rounded ${drawMode === 'circle' ? 'bg-blue-600' : 'bg-zinc-800'}`} title="Kreis"><i className="fa-regular fa-circle"></i></button>
+                                <button onClick={() => setDrawMode('semicircle')} className={`p-2 rounded ${drawMode === 'semicircle' ? 'bg-blue-600' : 'bg-zinc-800'}`} title="Halbkreis"><i className="fa-solid fa-circle-half-stroke"></i></button>
+                                <button onClick={() => setDrawMode('arc')} className={`p-2 rounded ${drawMode === 'arc' ? 'bg-blue-600' : 'bg-zinc-800'}`} title="Bogen"><i className="fa-solid fa-bezier-curve"></i></button>
+                                <button onClick={() => setDrawMode('curve')} className={`p-2 rounded ${drawMode === 'curve' ? 'bg-blue-600' : 'bg-zinc-800'}`} title="Kurve"><i className="fa-solid fa-wave-square"></i></button>
+                                <button onClick={onClose} className="p-2 text-zinc-400 hover:text-white"><i className="fa-solid fa-xmark"></i></button>
                             </div>
                         </div>
                         
-                        <div className="relative w-full aspect-square bg-zinc-950 border border-zinc-800 rounded mb-4 overflow-hidden bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjIyIiBzdHJva2Utd2lkdGg9IjAuNSI+PHBhdGggZD0iTTAgMjBMMjAgME0wIDBMMjAgMjAiLz48L3N2Zz4=')]">
+                        <div className="relative w-full aspect-square bg-zinc-950 border border-zinc-800 rounded mb-4 overflow-hidden">
                             <canvas 
                                 ref={canvasRef} 
                                 className="w-full h-full touch-none cursor-crosshair"
@@ -373,12 +407,10 @@
                                 <label className="text-[10px] text-zinc-500 uppercase">Pinselgröße</label>
                                 <input type="range" min="1" max="20" value={lineWidth} onChange={(e) => setLineWidth(parseInt(e.target.value))} className="w-full accent-blue-500 h-2 bg-zinc-800 rounded-lg"/>
                             </div>
-                            <button onClick={clearCanvas} className="w-10 h-10 rounded bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-700"><i className="fa-solid fa-trash"></i></button>
+                            <button onClick={() => ctx?.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE)} className="w-10 h-10 rounded bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-700"><i className="fa-solid fa-trash"></i></button>
                         </div>
 
-                        <button onClick={handleSave} className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded text-white font-bold shadow-lg shadow-cyan-900/20 uppercase tracking-widest">
-                             Als Ebene hinzufügen
-                        </button>
+                        <button onClick={() => onSave(canvasRef.current.toDataURL())} className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded text-white font-bold shadow-lg uppercase">Als Ebene hinzufügen</button>
                     </div>
                 </div>
             );
@@ -390,7 +422,7 @@
             const [ctx, setCtx] = useState(null);
             const [color, setColor] = useState('#00ff00');
             const [lineWidth, setLineWidth] = useState(8);
-            const [isStraight, setIsStraight] = useState(false);
+            const [drawMode, setDrawMode] = useState('free');
             const [startPos, setStartPos] = useState(null);
             const [snapshot, setSnapshot] = useState(null);
 
@@ -413,31 +445,56 @@
                 }
             }, [ctx, color, lineWidth]);
 
+            const getPos = (e) => {
+                const x = e.touches ? e.touches[0].clientX : e.clientX;
+                const y = e.touches ? e.touches[0].clientY : e.clientY;
+                return { x, y };
+            };
+
             const startDraw = (e) => {
                 if(!ctx) return;
                 setIsDrawing(true);
-                const x = e.touches ? e.touches[0].clientX : e.clientX;
-                const y = e.touches ? e.touches[0].clientY : e.clientY;
-                setStartPos({x, y});
+                const pos = getPos(e);
+                setStartPos(pos);
                 setSnapshot(ctx.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height));
                 ctx.beginPath();
-                ctx.moveTo(x, y);
+                ctx.moveTo(pos.x, pos.y);
             };
 
             const draw = (e) => {
                 if(!isDrawing || !ctx) return;
                 e.preventDefault();
-                const x = e.touches ? e.touches[0].clientX : e.clientX;
-                const y = e.touches ? e.touches[0].clientY : e.clientY;
+                const pos = getPos(e);
                 
-                if (isStraight || e.shiftKey) {
+                if (drawMode !== 'free') {
                     ctx.putImageData(snapshot, 0, 0);
                     ctx.beginPath();
-                    ctx.moveTo(startPos.x, startPos.y);
-                    ctx.lineTo(x, y);
+                    const dx = pos.x - startPos.x;
+                    const dy = pos.y - startPos.y;
+
+                    if (drawMode === 'line') {
+                        ctx.moveTo(startPos.x, startPos.y);
+                        ctx.lineTo(pos.x, pos.y);
+                    } else if (drawMode === 'circle') {
+                        const radius = Math.sqrt(dx*dx + dy*dy);
+                        ctx.arc(startPos.x, startPos.y, radius, 0, Math.PI * 2);
+                    } else if (drawMode === 'semicircle') {
+                        const radius = Math.sqrt(dx*dx + dy*dy) / 2;
+                        const centerX = (startPos.x + pos.x) / 2;
+                        const centerY = (startPos.y + pos.y) / 2;
+                        const angle = Math.atan2(dy, dx);
+                        ctx.arc(centerX, centerY, radius, angle, angle + Math.PI);
+                    } else if (drawMode === 'arc') {
+                        const radius = Math.sqrt(dx*dx + dy*dy);
+                        const angle = Math.atan2(dy, dx);
+                        ctx.arc(startPos.x, startPos.y, radius, 0, angle);
+                    } else if (drawMode === 'curve') {
+                        ctx.moveTo(startPos.x, startPos.y);
+                        ctx.quadraticCurveTo(startPos.x, pos.y, pos.x, pos.y);
+                    }
                     ctx.stroke();
                 } else {
-                    ctx.lineTo(x, y);
+                    ctx.lineTo(pos.x, pos.y);
                     ctx.stroke();
                 }
             };
@@ -457,8 +514,7 @@
                 let minX = w, minY = h, maxX = 0, maxY = 0, found = false;
 
                 for (let i = 0; i < data.length; i += 4) {
-                    const alpha = data[i + 3];
-                    if (alpha > 0) {
+                    if (data[i + 3] > 0) {
                         const idx = i / 4;
                         const x = idx % w;
                         const y = Math.floor(idx / w);
@@ -475,8 +531,7 @@
                 const tCtx = tempCanvas.getContext('2d');
                 const srcX = Math.max(0, minX - 5); const srcY = Math.max(0, minY - 5);
                 tCtx.drawImage(canvasRef.current, srcX, srcY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
-                const dataUrl = tempCanvas.toDataURL('image/png');
-                onSave(dataUrl, { x: srcX, y: srcY, w: cropWidth, h: cropHeight });
+                onSave(tempCanvas.toDataURL('image/png'), { x: srcX, y: srcY, w: cropWidth, h: cropHeight });
             };
 
             return (
@@ -488,13 +543,18 @@
                         onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
                         onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={stopDraw}
                      />
-                     <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex items-center gap-4 bg-zinc-900/95 p-2 px-4 rounded-full border border-zinc-700 shadow-2xl">
-                        <button onClick={() => setIsStraight(!isStraight)} className={`px-4 py-1.5 rounded-full text-[10px] font-bold border transition-colors ${isStraight ? 'bg-blue-600 border-blue-400 text-white' : 'bg-zinc-800 border-zinc-700 text-zinc-400'}`}>
-                            <i className="fa-solid fa-minus mr-1"></i> Linien-Modus {isStraight ? 'AN' : 'AUS'}
-                        </button>
+                     <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex items-center gap-2 bg-zinc-900/95 p-2 px-4 rounded-full border border-zinc-700 shadow-2xl">
+                        <div className="flex gap-1">
+                            <button onClick={() => setDrawMode('free')} className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${drawMode === 'free' ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-400'}`} title="Freihand"><i className="fa-solid fa-pen"></i></button>
+                            <button onClick={() => setDrawMode('line')} className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${drawMode === 'line' ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-400'}`} title="Linie"><i className="fa-solid fa-minus"></i></button>
+                            <button onClick={() => setDrawMode('circle')} className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${drawMode === 'circle' ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-400'}`} title="Kreis"><i className="fa-regular fa-circle"></i></button>
+                            <button onClick={() => setDrawMode('semicircle')} className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${drawMode === 'semicircle' ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-400'}`} title="Halbkreis"><i className="fa-solid fa-circle-half-stroke"></i></button>
+                            <button onClick={() => setDrawMode('arc')} className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${drawMode === 'arc' ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-400'}`} title="Bogen"><i className="fa-solid fa-bezier-curve"></i></button>
+                            <button onClick={() => setDrawMode('curve')} className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${drawMode === 'curve' ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-400'}`} title="Kurve"><i className="fa-solid fa-wave-square"></i></button>
+                        </div>
                         <div className="w-[1px] h-6 bg-zinc-800 mx-1"></div>
                         <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-8 h-8 rounded-full border-none cursor-pointer bg-transparent"/>
-                        <input type="range" min="1" max="30" value={lineWidth} onChange={(e) => setLineWidth(parseInt(e.target.value))} className="w-32 accent-blue-500"/>
+                        <input type="range" min="1" max="30" value={lineWidth} onChange={(e) => setLineWidth(parseInt(e.target.value))} className="w-24 accent-blue-500"/>
                         <button onClick={handleSave} className="px-4 py-1.5 bg-green-600 hover:bg-green-500 rounded-full text-white text-[10px] font-bold uppercase transition-all shadow-lg shadow-green-900/20">Fertig</button>
                         <button onClick={onClose} className="px-4 py-1.5 bg-red-600 hover:bg-red-500 rounded-full text-white text-[10px] font-bold uppercase transition-all">Abbruch</button>
                      </div>
@@ -570,25 +630,28 @@
               const isAnimated = surface.animationSpeed && surface.animationSpeed > 0;
               const animType = surface.animationType || 'simple';
               let animClass = '';
+              
               if (isAnimated) {
-                  if (surface.type === SurfaceType.LINE) {
-                      if (animType === 'chase') animClass = 'animate-dash';
-                      else if (animType === 'draw') animClass = 'animate-draw';
-                      else animClass = 'animate-glow';
-                  } else if (surface.type === SurfaceType.COLOR) {
-                      animClass = animType === 'chase' ? 'animate-scanner' : 'animate-glow';
-                  } else if (surface.type === SurfaceType.IMAGE) {
-                      if (animType === 'spin3d') animClass = 'animate-spin-3d';
-                      else if (animType === 'draw') animClass = 'animate-image-draw'; 
-                      else if (animType === 'chase') animClass = 'animate-image-chase'; 
-                      else animClass = 'animate-hue';
-                  } else if (surface.type === SurfaceType.TEXT) {
-                      if (animType === 'pulse') animClass = 'animate-text-pulse';
-                      else if (animType === 'flip') animClass = 'animate-text-flip';
-                      else animClass = 'animate-text-3d';
-                  }
+                  // MAPPING ANIMATION TYPES TO CSS CLASSES
+                  const mapping = {
+                      'shake': 'animate-shake',
+                      'float': 'animate-float',
+                      'blink': 'animate-blink',
+                      'sway': 'animate-sway',
+                      'scale': 'animate-scale',
+                      'glitch': 'animate-glitch',
+                      'chase': surface.type === SurfaceType.LINE ? 'animate-dash' : (surface.type === SurfaceType.COLOR ? 'animate-scanner' : 'animate-image-chase'),
+                      'draw': surface.type === SurfaceType.LINE ? 'animate-draw' : 'animate-image-draw',
+                      'spin3d': 'animate-spin-3d',
+                      'pulse': 'animate-text-pulse',
+                      'flip': 'animate-text-flip',
+                      'simple': surface.type === SurfaceType.TEXT ? 'animate-text-3d' : (surface.type === SurfaceType.IMAGE ? 'animate-hue' : 'animate-glow')
+                  };
+                  animClass = mapping[animType] || mapping['simple'];
               }
+
               const animStyle = isAnimated ? { animationDuration: `${surface.animationSpeed}s` } : {};
+
               switch(surface.type) {
                   case SurfaceType.VIDEO:
                       return <video ref={videoRef} src={surface.src} className="w-full h-full object-fill block" playsInline webkit-playsinline="true" preload="auto" muted={surface.isMuted} />;
@@ -632,10 +695,10 @@
                           if (surface.shape === 'circle') { svgTransform = 'rotate(90deg)'; animStyle.transformOrigin = 'center'; }
                       }
                       return (
-                          <svg width="100%" height="100%" viewBox={`0 0 ${INTERNAL_WIDTH} ${INTERNAL_HEIGHT}`} className="overflow-visible" style={{ transform: svgTransform }}>
-                              {surface.shape === 'rect' && <rect x={inset} y={inset} width={w} height={h} fill="none" stroke={surface.src} strokeWidth={strokeWidth} strokeDasharray={dashArray} className={animClass} style={animStyle}/>}
-                              {surface.shape === 'circle' && <circle cx={INTERNAL_WIDTH / 2} cy={INTERNAL_HEIGHT / 2} r={w / 2} fill="none" stroke={surface.src} strokeWidth={strokeWidth} strokeDasharray={dashArray} className={animClass} style={animStyle}/>}
-                              {surface.shape === 'triangle' && <polygon points={`${INTERNAL_WIDTH/2},${inset} ${INTERNAL_WIDTH - inset},${INTERNAL_HEIGHT - inset} ${inset},${INTERNAL_HEIGHT - inset}`} fill="none" stroke={surface.src} strokeWidth={strokeWidth} strokeDasharray={dashArray} className={animClass} style={animStyle}/>}
+                          <svg width="100%" height="100%" viewBox={`0 0 ${INTERNAL_WIDTH} ${INTERNAL_HEIGHT}`} className={`overflow-visible ${animClass}`} style={{ ...animStyle, transform: svgTransform }}>
+                              {surface.shape === 'rect' && <rect x={inset} y={inset} width={w} height={h} fill="none" stroke={surface.src} strokeWidth={strokeWidth} strokeDasharray={dashArray} />}
+                              {surface.shape === 'circle' && <circle cx={INTERNAL_WIDTH / 2} cy={INTERNAL_HEIGHT / 2} r={w / 2} fill="none" stroke={surface.src} strokeWidth={strokeWidth} strokeDasharray={dashArray} />}
+                              {surface.shape === 'triangle' && <polygon points={`${INTERNAL_WIDTH/2},${inset} ${INTERNAL_WIDTH - inset},${INTERNAL_HEIGHT - inset} ${inset},${INTERNAL_HEIGHT - inset}`} fill="none" stroke={surface.src} strokeWidth={strokeWidth} strokeDasharray={dashArray} />}
                           </svg>
                       );
                   case SurfaceType.COLOR:
@@ -908,32 +971,38 @@
                          )}
                          {(selectedSurface.type === SurfaceType.LINE || selectedSurface.type === SurfaceType.IMAGE || selectedSurface.type === SurfaceType.COLOR || selectedSurface.type === SurfaceType.TEXT) && (
                             <div className="space-y-1">
-                                <div className="flex justify-between text-xs text-zinc-400"><label>Animation</label><input type="checkbox" checked={!!selectedSurface.animationSpeed} onChange={(e) => onUpdateSurface(selectedSurface.id, { animationSpeed: e.target.checked ? 5 : 0 })} /></div>
+                                <div className="flex justify-between text-xs text-zinc-400"><label>Animation</label><input type="checkbox" checked={!!selectedSurface.animationSpeed} onChange={(e) => onUpdateSurface(selectedSurface.id, { animationSpeed: e.target.checked ? 5 : 0, animationType: 'simple' })} /></div>
                                  {selectedSurface.animationSpeed ? (
                                      <>
-                                        <input type="range" min="0.5" max="10" step="0.5" value={selectedSurface.animationSpeed} onChange={(e) => onUpdateSurface(selectedSurface.id, { animationSpeed: parseFloat(e.target.value) })} className="w-full accent-cyan-500 h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer"/>
-                                        {(selectedSurface.type === SurfaceType.LINE || selectedSurface.type === SurfaceType.COLOR) && (
-                                            <div className="flex gap-1 mt-1">
-                                                <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'simple' })} className={`flex-1 text-[9px] py-1 border rounded ${(!selectedSurface.animationType || selectedSurface.animationType==='simple') ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>Glow</button>
-                                                <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'chase' })} className={`flex-1 text-[9px] py-1 border rounded ${selectedSurface.animationType==='chase' ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>Lauflicht</button>
-                                                <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'draw' })} className={`flex-1 text-[9px] py-1 border rounded ${selectedSurface.animationType==='draw' ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>Aufbau</button>
-                                            </div>
-                                        )}
-                                        {(selectedSurface.type === SurfaceType.IMAGE) && (
-                                             <div className="flex gap-1 mt-1">
-                                                <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'simple' })} className={`flex-1 text-[9px] py-1 border rounded ${(!selectedSurface.animationType || selectedSurface.animationType==='simple') ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>Farbwechsel</button>
-                                                <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'spin3d' })} className={`flex-1 text-[9px] py-1 border rounded ${selectedSurface.animationType==='spin3d' ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>3D Spin</button>
-                                                <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'chase' })} className={`flex-1 text-[9px] py-1 border rounded ${selectedSurface.animationType==='chase' ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>Lauflicht</button>
-                                                <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'draw' })} className={`flex-1 text-[9px] py-1 border rounded ${selectedSurface.animationType==='draw' ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>Aufbau</button>
-                                            </div>
-                                        )}
-                                        {(selectedSurface.type === SurfaceType.TEXT) && (
-                                             <div className="grid grid-cols-2 gap-1 mt-1">
-                                                <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'simple' })} className={`text-[9px] py-1 border rounded ${(!selectedSurface.animationType || selectedSurface.animationType==='simple') ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>3D Flow</button>
-                                                <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'pulse' })} className={`text-[9px] py-1 border rounded ${selectedSurface.animationType==='pulse' ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>Pulsieren</button>
-                                                <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'flip' })} className={`text-[9px] py-1 border rounded ${selectedSurface.animationType==='flip' ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-600 text-zinc-400'}`}>3D Flip</button>
-                                            </div>
-                                        )}
+                                        <input type="range" min="0.1" max="10" step="0.1" value={selectedSurface.animationSpeed} onChange={(e) => onUpdateSurface(selectedSurface.id, { animationSpeed: parseFloat(e.target.value) })} className="w-full accent-cyan-500 h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer"/>
+                                        <div className="grid grid-cols-3 gap-1 mt-1">
+                                            {[
+                                                {id:'simple', n:'Standard'},
+                                                {id:'shake', n:'Shake'},
+                                                {id:'float', n:'Float'},
+                                                {id:'blink', n:'Blink'},
+                                                {id:'sway', n:'Sway'},
+                                                {id:'scale', n:'Scale'},
+                                                {id:'glitch', n:'Glitch'}
+                                            ].map(anim => (
+                                                <button key={anim.id} onClick={() => onUpdateSurface(selectedSurface.id, { animationType: anim.id })} className={`text-[8px] py-1 border rounded transition-colors uppercase font-bold ${selectedSurface.animationType === anim.id ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-700 text-zinc-500 hover:bg-zinc-800'}`}>{anim.n}</button>
+                                            ))}
+                                            {(selectedSurface.type === SurfaceType.LINE || selectedSurface.type === SurfaceType.COLOR || selectedSurface.type === SurfaceType.IMAGE) && (
+                                                <>
+                                                    <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'chase' })} className={`text-[8px] py-1 border rounded uppercase font-bold ${selectedSurface.animationType==='chase' ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-700 text-zinc-500 hover:bg-zinc-800'}`}>Lauflicht</button>
+                                                    <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'draw' })} className={`text-[8px] py-1 border rounded uppercase font-bold ${selectedSurface.animationType==='draw' ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-700 text-zinc-500 hover:bg-zinc-800'}`}>Aufbau</button>
+                                                </>
+                                            )}
+                                            {selectedSurface.type === SurfaceType.IMAGE && (
+                                                 <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'spin3d' })} className={`text-[8px] py-1 border rounded uppercase font-bold ${selectedSurface.animationType==='spin3d' ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-700 text-zinc-500 hover:bg-zinc-800'}`}>3D Spin</button>
+                                            )}
+                                            {selectedSurface.type === SurfaceType.TEXT && (
+                                                <>
+                                                 <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'pulse' })} className={`text-[8px] py-1 border rounded uppercase font-bold ${selectedSurface.animationType==='pulse' ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-700 text-zinc-500 hover:bg-zinc-800'}`}>Pulsieren</button>
+                                                 <button onClick={() => onUpdateSurface(selectedSurface.id, { animationType: 'flip' })} className={`text-[8px] py-1 border rounded uppercase font-bold ${selectedSurface.animationType==='flip' ? 'bg-blue-600 border-blue-500 text-white' : 'border-zinc-700 text-zinc-500 hover:bg-zinc-800'}`}>3D Flip</button>
+                                                </>
+                                            )}
+                                        </div>
                                      </>
                                  ) : null}
                             </div>
@@ -1003,14 +1072,14 @@
           const handleSaveWindowDrawing = (dataUrl) => {
               setShowWindowDrawing(false);
               const newSurface = handleAddSurface(SurfaceType.IMAGE, dataUrl, 'rect', 500, 500);
-              if (newSurface) handleUpdateSurface(newSurface.id, { animationSpeed: 4, animationType: 'spin3d', name: 'Zeichnung' });
+              if (newSurface) handleUpdateSurface(newSurface.id, { animationSpeed: 4, animationType: 'simple', name: 'Zeichnung' });
           };
           
           const handleSaveScreenDrawing = (dataUrl, rect) => {
               setShowScreenDrawing(false); if (!containerRef.current) return; const containerRect = containerRef.current.getBoundingClientRect();
               const gCx = rect.x + (rect.w / 2); const gCy = rect.y + (rect.h / 2); const lCx = gCx - containerRect.left; const lCy = gCy - containerRect.top;
               const newSurface = handleAddSurface(SurfaceType.IMAGE, dataUrl, 'rect', rect.w, rect.h, 0, lCx, lCy);
-              if (newSurface) handleUpdateSurface(newSurface.id, { animationSpeed: 5, animationType: 'spin3d', name: 'Direkt-Zeichnung' });
+              if (newSurface) handleUpdateSurface(newSurface.id, { animationSpeed: 5, animationType: 'simple', name: 'Direkt-Zeichnung' });
           };
 
           const handleUpdateSurface = (id, updates) => setSurfaces(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));

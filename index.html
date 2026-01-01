@@ -38,8 +38,6 @@
       }
 
       /* --- ANIMATIONS --- */
-      
-      /* Existing Animations */
       .animate-glow { animation: neon-pulse 2s infinite linear; }
       .animate-dash { animation: dash-cycle 2s infinite linear; }
       .animate-draw { 
@@ -133,8 +131,6 @@
         0% { mask-position: 100% 0; -webkit-mask-position: 100% 0; }
         100% { mask-position: -100% 0; -webkit-mask-position: -100% 0; }
       }
-
-      /* --- NEW KEYFRAMES --- */
       @keyframes shake {
         0%, 100% { transform: translate(0, 0); }
         25% { transform: translate(-5px, 5px); }
@@ -567,6 +563,7 @@
 
           const safeStart = Number(surface.timelineStart) || 0;
           const safeDuration = Number(surface.timelineDuration) || 10;
+          const playbackRate = Number(surface.playbackRate) || 1.0;
 
           const isActive = useMemo(() => {
               if (!isPlaying) return surface.visible;
@@ -589,17 +586,29 @@
                 const vid = videoRef.current;
                 vid.volume = surface.volume ?? 1.0;
                 vid.muted = surface.isMuted ?? false;
-                vid.playbackRate = surface.playbackRate ?? 1.0;
+                
+                // Native playback rate setting
+                if (vid.playbackRate !== playbackRate) {
+                    vid.playbackRate = playbackRate;
+                }
                 
                 const shouldLoop = surface.loopMode !== 'once';
                 if(vid.loop !== shouldLoop) vid.loop = shouldLoop;
 
                 if (isPlaying) {
                      if (isActive) {
-                         const videoOffset = globalTime - safeStart;
+                         const videoElapsedTimeline = globalTime - safeStart;
+                         const targetVideoTime = (videoElapsedTimeline * playbackRate);
+                         
+                         // Fix synchronicity: 
+                         // Only force seek if the difference is larger than 0.8s to prevent stutter.
+                         // Browsers are better at handling playbackRate internally.
                          if (Number.isFinite(vid.duration) && vid.duration > 0) {
-                             const diff = Math.abs(vid.currentTime - (videoOffset % vid.duration));
-                             if (diff > 0.5 && !vid.seeking) vid.currentTime = videoOffset % vid.duration; 
+                             const modTarget = targetVideoTime % vid.duration;
+                             const diff = Math.abs(vid.currentTime - modTarget);
+                             if (diff > 0.8 && !vid.seeking) {
+                                 vid.currentTime = modTarget;
+                             }
                          }
                          if (vid.paused) vid.play().catch(e => {});
                      } else {
@@ -611,7 +620,7 @@
                     else vid.pause();
                 }
             }
-          }, [isPlaying, isActive, globalTime, safeStart, surface.volume, surface.isMuted, surface.type, surface.loopMode, surface.playbackRate]);
+          }, [isPlaying, isActive, globalTime, safeStart, surface.volume, surface.isMuted, surface.type, surface.loopMode, playbackRate]);
 
           const isLineAndMasked = (surface.type === SurfaceType.LINE && surface.maskPoints && surface.maskPoints.length >= 2);
 
@@ -632,7 +641,6 @@
               let animClass = '';
               
               if (isAnimated) {
-                  // MAPPING ANIMATION TYPES TO CSS CLASSES
                   const mapping = {
                       'shake': 'animate-shake',
                       'float': 'animate-float',
@@ -1067,7 +1075,7 @@
               id: uuidv4(), name: `${type === 'TEXT' ? 'Text' : 'Fläche'} ${surfaces.length + 1}`, type, shape, src,
               corners: [{ x: cx - halfW, y: cy - halfH }, { x: cx + halfW, y: cy - halfH }, { x: cx + halfW, y: cy + halfH }, { x: cx - halfW, y: cy + halfH }],
               opacity: 1, visible: true, zIndex: surfaces.length + 1, lineWidth: 10, animationSpeed: 0, animationType: 'simple', isMuted: false, volume: 1, 
-              playbackRate: 1.0, // Initial playback rate for videos
+              playbackRate: 1.0, 
               timelineStart: 0, timelineDuration: 10, rotation: 0, videoDuration: duration, loopMode: 'infinite', loopCount: 1,
               textContent: type === 'TEXT' ? 'PROJECTION' : '', fontSize: type === 'TEXT' ? 80 : 0, isVertical: false
             };

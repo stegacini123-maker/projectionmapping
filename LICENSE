@@ -1,15 +1,348 @@
-# Creative Commons Namensnennung – Nicht kommerziell – Weitergabe unter gleichen Bedingungen 4.0 International (CC BY-NC-SA 4.0)
+# Projection Mapping Tool – Lizenzvereinbarung
 
-Der Quellcode dieses Projekts ist lizenziert unter der Creative Commons Namensnennung – Nicht kommerziell – Weitergabe unter gleichen Bedingungen 4.0 International Public License.
+**Version 2.0 • Januar 2024**  
+**© 2024 [DEIN NAME ODER GITHUB-USERNAME]. Alle Rechte vorbehalten.**
 
+## 1. Lizenzübersicht
+
+Dieses Projekt steht unter einer **zwei-stufigen Lizenz**:
+
+1. **Nicht-kommerzielle Open-Source-Nutzung**: Kostenfrei mit Einschränkungen
+2. **Kommerzielle Nutzung**: Separate Lizenzvereinbarung erforderlich
+
+**Zusammenfassung**: Sie dürfen dieses Tool kostenlos für private, Bildungs- und Open-Source-Projekte nutzen. Kommerzielle Nutzung erfordert eine separate Lizenz.
+
+## 2. Erlaubte Nutzung (Nicht-kommerziell)
+
+### 2.1 Kostenfrei erlaubt für:
+- ✅ **Private Projekte** – Persönliche Nutzung, Hobby-Projekte
+- ✅ **Bildung & Forschung** – Schulen, Universitäten, Forschungseinrichtungen
+- ✅ **Open-Source-Projekte** – Ohne kommerziellen Hintergrund
+- ✅ **Künstlerische Projekte** – Kunstinstallationen, kulturelle Events
+- ✅ **Gemeinnützige Organisationen** – Ohne Gewinnerzielungsabsicht
+- ✅ **Persönliches Lernen** – Ausbildung, Weiterbildung, Experimente
+
+### 2.2 Nutzungsrechte:
+- Das Tool auf Ihrem Computer installieren und verwenden
+- Den Quellcode studieren und verstehen
+- Das Tool für erlaubte Zwecke einsetzen
+- Projekte damit erstellen und speichern
+
+## 3. Verbotene Nutzung (Ohne kommerzielle Lizenz)
+
+### 3.1 Explizit verboten:
+- ❌ **Verkauf** – Das Tool oder abgeleitete Versionen verkaufen
+- ❌ **Vermietung** – Gegen Bezahlung zur Verfügung stellen
+- ❌ **Kommerzielle Integration** – In kommerzielle Produkte/Services einbauen
+- ❌ **SaaS-Angebote** – Als Software-as-a-Service anbieten
+- ❌ **Gewerbliche Dienstleistungen** – In bezahlten Auftragsarbeiten nutzen
+- ❌ **Unternehmensnutzung** – In gewinnorientierten Unternehmen einsetzen
+
+### 3.2 Beispiele verbotener Nutzung:
+- Agentur nutzt das Tool für Kundenprojekte
+- Firma integriert es in ihr Produkt
+- Workshop-Anbieter nutzt es in bezahlten Kursen
+- Entwickler verkauft modifizierte Version
+
+## 4. Copyleft-Bedingung (Weitergabe unter gleichen Bedingungen)
+
+### 4.1 Wenn Sie den Code weitergeben, müssen Sie:
+- Den **vollständigen Quellcode** bereitstellen
+- **Alle Änderungen** dokumentieren
+- Unter **derselben Lizenz** (diese Lizenz) veröffentlichen
+- Den **Urhebervermerk beibehalten**
+
+### 4.2 Urhebervermerk muss enthalten:
+Projection Mapping Tool
+© 2024 [DEIN NAME]
+Lizenziert unter: Projection Mapping Tool License v2.0
+Quelle: https://github.com/https://stegacini123-maker.github.io/projectionmapping/
+
+## 5. Externe Bibliotheken (Drittanbieter)
+
+### 5.1 Verwendete Bibliotheken:
+| Bibliothek | Version | Lizenz | Quelle |
+|------------|---------|--------|--------|
+| React & ReactDOM | 18.x | MIT License | https://unpkg.com/react |
+| Tailwind CSS | 3.x | MIT License | https://cdn.tailwindcss.com |
+| FontAwesome | 6.4.0 | CC BY 4.0 / FontAwesome Free License | https://cdnjs.cloudflare.com |
+| Babel Standalone | 7.x | MIT License | https://unpkg.com/@babel/standalone |
+
+### 5.2 Lizenzkompatibilität:
+- Alle verwendeten Bibliotheken sind mit dieser Lizenz kompatibel
+- MIT-Lizenzen erlauben kommerzielle Nutzung
+- FontAwesome Free erlaubt nicht-kommerzielle Nutzung
+
+## 6. Haftungsausschluss
+
+### 6.1 Keine Gewährleistung
+**DIESE SOFTWARE WIRD OHNE JEGLICHE GEWÄHRLEISTUNG BEREITGESTELLT, WEDER AUSDRÜCKLICH NOCH IMPLIZIT.** Insbesondere wird keine Gewährleistung für folgendes gegeben:
+
+- **Marktgängigkeit** – Eignung für den Verkauf
+- **Eignung für bestimmte Zwecke** – Tauglichkeit für Ihren Einsatzzweck
+- **Fehlerfreiheit** – Frei von Programmfehlern
+- **Nichtverletzung von Rechten Dritter** – Keine Urheberrechtsverletzungen
+
+### 6.2 Keine Haftung
+**IN KEINEM FALL HAFTET DER URHEBER FÜR:**
+
+- **Direkte Schäden** – Unmittelbare Verluste
+- **Indirekte Schäden** – Folgekosten, entgangener Gewinn
+- **Zufällige Schäden** – Unvorhergesehene Probleme
+- **Folgeschäden** – Kaskadierende Auswirkungen
+
+**DIES GILT AUCH, WENN AUF DIE MÖGLICHKEIT SOLCHER SCHÄDEN HINGEWIESEN WURDE.**
+
+### 6.3 Nutzung auf eigenes Risiko
+- Sie tragen die **volle Verantwortung** für die Nutzung
+- Sie sind für die **Rechtmäßigkeit Ihrer Inhalte** verantwortlich
+- Sie müssen **lokale Gesetze und Vorschriften** einhalten
+- Sie sorgen für **Datensicherheit und Datenschutz**
+
+## 7. Urheberrechtliche Hinweise
+
+### 7.1 Eigene Medien verwenden
+- Verwenden Sie nur **selbsterstellte** oder **lizenzfreie** Medien
+- Sie sind **allein verantwortlich** für Urheberrechtsverletzungen
+- Bei Verstößen haften **Sie persönlich**
+
+### 7.2 Richtlinien für hochgeladene Inhalte:
+- **Erlaubt**: Eigene Fotos/Videos, CC0, Public Domain
+- **Erlaubt**: Mit ausdrücklicher Erlaubnis des Urhebers
+- **Verboten**: Geschützte Werke ohne Lizenz
+- **Verboten**: Kommerzielle Stock-Medien ohne Lizenz
+
+## 8. Kommerzielle Lizenzierung
+
+### 8.1 Kommerzielle Lizenz erforderlich für:
+- Unternehmen mit Gewinnerzielungsabsicht
+- Freelancer in bezahlten Projekten
+- Bildungsinstitutionen mit Gebühren
+- Organisationen mit kommerziellem Fokus
+
+### 8.2 Lizenzanfrage:
+Kontaktieren Sie für kommerzielle Lizenzen:
+s.end123@outlook.de
+Betreff: Kommerzielle Lizenzanfrage Projection Mapping Tool
+
+### 8.3 Lizenzinhalt (Beispiel):
+- Rechtliche Nutzung in kommerziellem Kontext
+- Technischer Support (optional)
+- Updates und neue Versionen
+- Haftungsübernahme durch Urheber
+
+## 9. Lizenzverstöße
+
+### 9.1 Bei Verstößen:
+- Automatischer **Verlust des Nutzungsrechts**
+- **Verpflichtung zur Löschung** aller Kopien
+- **Mögliche Schadensersatzansprüche**
+- **Rechtliche Schritte** des Urhebers
+
+### 9.2 Meldung von Verstößen:
+- Melden Sie Verstöße an: [DEINE-E-MAIL]
+- Konkrete Beweise vorlegen
+- Vertrauliche Behandlung
+
+## 10. GitHub-spezifische Bestimmungen
+
+### 10.1 Forking auf GitHub:
+- Forks müssen unter **derselben Lizenz** stehen
+- Kommerzielle Forks sind **untersagt**
+- Urhebervermerk muss **erhalten bleiben**
+
+### 10.2 GitHub Pages:
+- Öffentliches Hosting auf GitHub Pages ist **erlaubt**
+- Dies gilt **nicht** als kommerzielle Nutzung
+- GitHub's eigene Nutzungsbedingungen gelten zusätzlich
+
+### 10.3 Issues und Contributions:
+- Beiträge werden unter **diese Lizenz** gestellt
+- Urheberrecht geht **nicht** auf den Urheber über
+- Beiträge müssen **lizenzkonform** sein
+
+## 11. Technische Implementierung
+
+### 11.1 Quellcode-Kennzeichnung:
+Jede wichtige Quelldatei sollte enthalten:
+
+```javascript
+/**
+ * @license Projection Mapping Tool
+ * Copyright (c) 2024 [DEIN NAME]
+ * Licensed under Projection Mapping Tool License v2.0
+ * https://github.com/[DEIN-USERNAME]/[REPOSITORY-NAME]/blob/main/LICENSE.md
+ */
+11.2 Build-Prozess:
+Keine Build-Tools erforderlich
+
+Direkte Ausführung im Browser
+
+Keine versteckten Prozesse
+
+12. Datenschutzrechtliche Aspekte
+12.1 Datenschutzgarantie:
+100% client-seitige Verarbeitung
+
+Keine Server-Kommunikation
+
+Keine Datenspeicherung auf externen Servern
+
+Keine Tracking-Mechanismen
+
+12.2 Lokale Datenspeicherung:
+Local Storage: Projekteinstellungen
+
+Session Storage: Temporäre Daten
+
+Browser Cache: Medien-Dateien
+
+Alle Daten bleiben auf Ihrem Gerät
+
+13. Gültigkeit und Änderungen
+13.1 Gültigkeit:
+Diese Lizenz tritt mit der Veröffentlichung in Kraft
+
+Gilt für alle Versionen bis zur Aktualisierung
+
+Bindung an die Version zum Zeitpunkt des Downloads
+
+13.2 Änderungen:
+Der Urheber behält sich Änderungen vor
+
+Änderungen werden im Repository veröffentlicht
+
+Bei größeren Änderungen wird hingewiesen
+
+13.3 Aufbewahrung:
+Bewahren Sie eine Kopie dieser Lizenz auf
+
+Relevant für rechtliche Nachweise
+
+Immer die aktuelle Version verwenden
+
+14. Gerichtsstand und anwendbares Recht
+14.1 Anwendbares Recht:
+Deutsches Recht unter Ausschluss des UN-Kaufrechts
+
+Für Verbraucher: Zusätzlich Heimatrecht
+
+14.2 Gerichtsstand:
+Gerichtsstand: [DEINE STADT], Deutschland
+
+Sofern gesetzlich zulässig
+
+Bei Verbrauchern: Deren Wohnsitz
+
+14.3 Streitbeilegung:
+EU-Streitbeilegungsplattform: https://ec.europa.eu/consumers/odr
+
+Keine Verpflichtung zur Teilnahme
+
+Vorgerichtliche Einigung angestrebt
+
+15. Kontakt und Support
+15.1 Kontakt für:
+Lizenzfragen: [DEINE-E-MAIL]
+
+Technischer Support: GitHub Issues
+
+Rechtliche Anfragen: [DEINE-E-MAIL]
+
+Sicherheitslücken: [DEINE-E-MAIL]
+
+15.2 Antwortzeiten:
+Lizenzanfragen: Innerhalb von 7 Werktagen
+
+Technische Fragen: Nach bestem Wissen
+
+Rechtliche Fragen: So schnell wie möglich
+
+15.3 Kommunikationswege:
+Bevorzugt: GitHub Issues (öffentlich)
+
+Privat: E-Mail (für sensible Themen)
+
+Dringend: Nach vorheriger Abstimmung
+
+16. Definitionen
+16.1 Schlüsselbegriffe:
+Nicht-kommerzielle Nutzung: Ohne direkte oder indirekte Gewinnerzielung
+
+Kommerzielle Nutzung: Mit finanzieller oder wirtschaftlicher Absicht
+
+Derivat: Modifizierte oder erweiterte Version
+
+Urheber: Schöpfer des Originalwerks ([DEIN NAME])
+
+16.2 Abgrenzungen:
+Open-Source: Quelloffen, aber nicht notwendigerweise kostenlos
+
+Freeware: Kostenlos, aber nicht notwendigerweise Open-Source
+
+Proprietär: Geschlossen, häufig kommerziell
+
+Anhang A: Lizenzhistorie
+Version 2.0 (Januar 2024)
+Klarere Trennung kommerziell/nicht-kommerziell
+
+GitHub-spezifische Regelungen hinzugefügt
+
+Haftungsausschluss erweitert
+
+Kontaktinformationen strukturiert
+
+Version 1.0 (Initial)
+Erste Veröffentlichung
+
+Basis-Regelungen
+
+Grundlegender Haftungsausschluss
+
+Anhang B: Kompatibilitätshinweise
+B.1 Kompatible Lizenzen:
+MIT License – Voll kompatibel
+
+Apache 2.0 – Kompatibel mit Einschränkungen
+
+GPLv3 – Nicht kompatibel (andere Copyleft-Regeln)
+
+B.2 Inkompatible Nutzungen:
+Integration in proprietäre Software
+
+Nutzung unter stärkeren Copyleft-Lizenzen
+
+Dual-Licensing ohne Erlaubnis
+
+Zusammenfassung für schnelles Verständnis
 Sie dürfen:
-* **Teilen:** Das Material in jedwedem Format oder Medium vervielfältigen und weiterverbreiten.
-* **Bearbeiten:** Das Material remixen, verändern und darauf aufbauen.
+Das Tool kostenlos für private Projekte nutzen
 
-Unter folgenden Bedingungen:
-* **Namensnennung (BY):** Sie müssen angemessene Urheber- und Rechteangaben machen.
-* **Nicht kommerziell (NC):** Sie dürfen das Material nicht für **kommerzielle Zwecke** nutzen.
-* **Weitergabe unter gleichen Bedingungen (SA):** Wenn Sie das Material remixen, verändern oder darauf aufbauen, müssen Sie Ihre Beiträge unter derselben Lizenz wie das Original verbreiten.
+Den Code studieren und verstehen
 
-Der vollständige und rechtsverbindliche Lizenztext kann hier eingesehen werden: 
-[https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode.de](https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode.de)
+Für Bildung und Forschung einsetzen
+
+Unter gleichen Bedingungen weitergeben
+
+Sie dürfen NICHT:
+Das Tool verkaufen oder vermieten
+
+In kommerziellen Produkten verwenden
+
+In gewinnorientierten Unternehmen nutzen
+
+Gegen Bezahlung anbieten
+
+Sie MÜSSEN:
+Den Urheber nennen
+
+Bei Weitergabe unter gleicher Lizenz bleiben
+
+Für Ihre Inhalte verantwortlich sein
+
+Letzte Aktualisierung: Januar 2024
+Gültig für alle Versionen ab 2.0
+
+Diese Lizenz wurde sorgfältig erstellt, ersetzt aber keine rechtliche Beratung. Bei Unsicherheiten konsultieren Sie einen Rechtsanwalt.
+
+© 2024 [DEIN NAME]. Diese Lizenz schützt sowohl Ihre als auch meine Rechte.
